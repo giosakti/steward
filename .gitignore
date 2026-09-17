@@ -1,0 +1,13 @@
+/docs/specs/
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.steward/
+*.log
+/.agents/
+/.codex/
+.DS_Store
