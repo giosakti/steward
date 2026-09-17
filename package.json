@@ -1,0 +1,24 @@
+{
+  "name": "steward",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/copy-migrations.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test dist/tests/*.test.js",
+    "steward": "node dist/src/cli/main.js",
+    "db:migrate": "npm run steward -- init"
+  },
+  "dependencies": {
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.5",
+    "@types/pg": "8.23.1",
+    "typescript": "7.0.2"
+  }
+}
