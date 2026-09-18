@@ -34,7 +34,7 @@ async function isolated(fn: (url: string, client: pg.Client, schema: string) => 
 await test('clean initialization persists across processes, repeats safely, and protects events', async () => {
   await isolated(async (url, client, schema) => {
     const cli = new URL('../src/cli/main.js', import.meta.url);
-    const args = [cli.pathname, 'init', '--schema', schema];
+    const args = [cli.pathname, 'db', 'migrate', '--schema', schema];
     const first = await exec(process.execPath, args, {env: {...process.env, DATABASE_URL: url}});
     assert.match(first.stdout, /Applied: 1789689600000_events/);
     const second = await exec(process.execPath, args, {env: {...process.env, DATABASE_URL: url}});
@@ -81,14 +81,16 @@ await test('CLI loads .env, preserves environment precedence, and works without 
   const cwd = await mkdtemp(join(tmpdir(), 'steward-cli-env-'));
   const env = {...process.env}; delete env.DATABASE_URL;
   try {
-    assert.match((await exec(process.execPath, [cli, '--help'], {env, cwd})).stdout, /init/);
-    await assert.rejects(exec(process.execPath, [cli, 'init'], {env, cwd}), /DATABASE_URL is required/);
+    assert.match((await exec(process.execPath, [cli, '--help'], {env, cwd})).stdout, /db/);
+    await assert.rejects(exec(process.execPath, [cli, 'db', 'migrate'], {env, cwd}), /DATABASE_URL is required/);
     await assert.rejects(exec(process.execPath, [cli, 'unknown'], {env, cwd}), /unknown command/);
+    await assert.rejects(exec(process.execPath, [cli, 'init'], {env, cwd}), /unknown command/);
+    assert.match((await exec(process.execPath, [cli, 'db', '--help'], {env, cwd})).stdout, /migrate/);
     await isolated(async (url, _client, schema) => {
       await writeFile(join(cwd, '.env'), `DATABASE_URL=${url}\n`);
-      assert.match((await exec(process.execPath, [cli, 'init', '--schema', schema], {env, cwd})).stdout, /Applied:/);
+      assert.match((await exec(process.execPath, [cli, 'db', 'migrate', '--schema', schema], {env, cwd})).stdout, /Applied:/);
       await writeFile(join(cwd, '.env'), 'DATABASE_URL=postgresql://invalid:invalid@127.0.0.1:1/invalid\n');
-      assert.match((await exec(process.execPath, [cli, 'init', '--schema', schema], {env: {...env, DATABASE_URL: url}, cwd})).stdout, /up to date/);
+      assert.match((await exec(process.execPath, [cli, 'db', 'migrate', '--schema', schema], {env: {...env, DATABASE_URL: url}, cwd})).stdout, /up to date/);
     });
   } finally { await rm(cwd, {recursive: true, force: true}); }
 });

@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --env-file-if-exists=.env --test dist/tests/*.test.js",
     "steward": "node dist/src/cli/main.js",
-    "db:migrate": "npm run steward -- init",
+    "db:migrate": "npm run steward -- db migrate",
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {

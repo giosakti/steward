@@ -26,7 +26,7 @@ npm ci
 cp .env.example .env
 ```
 
-Edit `.env` with your PostgreSQL credentials and database names, then initialize:
+Edit `.env` with your PostgreSQL credentials and database names, then apply the migrations:
 
 ```sh
 npm run build
@@ -60,6 +60,9 @@ Tests also load `.env`, build the project, and use temporary schemas in `steward
 them afterward. They do not use the application database.
 
 ## Database Migration
+
+Run `npm run db:migrate` (equivalent to `npm run steward -- db migrate`)
+to apply pending migrations.
 
 SQL migrations live in [`src/storage/migrations`](src/storage/migrations).
 Append new timestamp-prefixed files rather than editing applied migrations.

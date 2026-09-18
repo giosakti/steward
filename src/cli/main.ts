@@ -7,7 +7,9 @@ const program = new Command()
   .name('steward')
   .description('Steward bootstrap tools');
 
-program.command('init')
+program.command('db')
+  .description('Database maintenance commands')
+  .command('migrate')
   .description('Apply reviewed SQL migrations to DATABASE_URL')
   .option('--schema <name>', 'Existing PostgreSQL schema', 'public')
   .action(async (options: {schema: string}) => {
@@ -24,6 +26,6 @@ try {
   if (process.argv.length === 2) program.outputHelp();
   else await program.parseAsync();
 } catch (error) {
-  console.error(`Initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`Migration failed: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
 }
