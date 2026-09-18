@@ -108,78 +108,27 @@ export async function listWorkspaces(
     .execute();
 }
 
-export type WorkspaceReference = string | { id: string };
-
-async function resolveWorkspace(
+export async function showWorkspace(
   db: Kysely<Database>,
-  reference?: WorkspaceReference,
+  id: string,
 ): Promise<Workspace> {
-  const query = db
-    .selectFrom('workspaces as w')
-    .selectAll('w')
-    .where('w.archived_at', 'is', null);
-  let scopedQuery;
-  if (reference === undefined) {
-    scopedQuery = query
-      .innerJoin('workspace_selection as s', 'w.id', 's.workspace_id')
-      .where('s.singleton', '=', true);
-  } else if (typeof reference === 'string') {
-    scopedQuery = query.where('w.slug', '=', reference);
-  } else {
-    scopedQuery = query.where('w.id', '=', reference.id);
-  }
-
-  const workspace = await scopedQuery.executeTakeFirst();
+  const workspace = await db
+    .selectFrom('workspaces')
+    .selectAll()
+    .where('id', '=', id)
+    .where('archived_at', 'is', null)
+    .executeTakeFirst();
   if (!workspace) {
-    const message =
-      reference === undefined
-        ? 'No workspace selected; use workspace use <slug> or --workspace <slug>'
-        : `Workspace not found: ${typeof reference === 'string' ? reference : reference.id}`;
-    throw new ApplicationError('NOT_FOUND', message);
+    throw new ApplicationError('NOT_FOUND', `Workspace not found: ${id}`);
   }
   return workspace;
 }
 
-export async function showWorkspace(
-  db: Kysely<Database>,
-  reference?: WorkspaceReference,
-): Promise<Workspace> {
-  return resolveWorkspace(db, reference);
-}
-
-export async function useWorkspace(
-  db: Kysely<Database>,
-  slug: string,
-  context: OperatorContext,
-): Promise<Workspace> {
-  const operator = requireOperator(context);
-  return db.transaction().execute(async (trx) => {
-    const workspace = await resolveWorkspace(trx, slug);
-    await trx
-      .insertInto('workspace_selection')
-      .values({ singleton: true, workspace_id: workspace.id })
-      .onConflict((oc) =>
-        oc.column('singleton').doUpdateSet({ workspace_id: workspace.id }),
-      )
-      .execute();
-    await record(
-      trx,
-      workspace.id,
-      'WORKSPACE_SELECTED',
-      {
-        workspaceId: workspace.id,
-      },
-      operator,
-    );
-    return workspace;
-  });
-}
-
 export async function showAgent(
   db: Kysely<Database>,
-  reference?: WorkspaceReference,
+  workspaceId: string,
 ): Promise<Agent> {
-  const workspace = await resolveWorkspace(db, reference);
+  const workspace = await showWorkspace(db, workspaceId);
   return db
     .selectFrom('agents')
     .selectAll()
@@ -191,14 +140,14 @@ export async function showAgent(
 export async function configureAgent(
   db: Kysely<Database>,
   input: ConfigureAgentInput,
-  reference: WorkspaceReference | undefined,
+  workspaceId: string,
   context: OperatorContext,
 ): Promise<Agent> {
   const operator = requireOperator(context);
   const parsed = configureAgentSchema.parse(input);
 
   return db.transaction().execute(async (trx) => {
-    const workspace = await resolveWorkspace(trx, reference);
+    const workspace = await showWorkspace(trx, workspaceId);
     const agent = await trx
       .updateTable('agents')
       .set({

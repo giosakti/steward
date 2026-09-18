@@ -40,10 +40,17 @@ variables take precedence, and `.env` is gitignored.
 
 ## Workspaces
 
-Build the CLI, then create and select a workspace:
+Generate an operator token with `openssl rand -hex 32`, set
+`STEWARD_API_TOKEN` in `.env`, and start the server:
 
 ```sh
 npm run build
+npm start
+```
+
+In another terminal, create and select a workspace through the API:
+
+```sh
 npm run steward -- workspace create personal "Personal project" --root-path .
 npm run steward -- workspace use personal
 npm run steward -- workspace show
@@ -56,8 +63,16 @@ Each workspace has one root agent, named and titled `Steward` by default.
 not modify its files. Agent configuration also accepts `--name` and
 `--role-description`.
 
-The selected workspace persists across commands in the same database. Use
-`--workspace <slug>` to target another workspace without changing that selection:
+The CLI uses `STEWARD_API_URL` (default `http://127.0.0.1:3000`) and
+`STEWARD_API_TOKEN`; it never connects directly to PostgreSQL. Relative root paths
+are resolved from the CLI working directory and must exist on the server.
+
+`workspace use` resolves the slug through the API and saves the workspace UUID
+and API address locally. The default file is `$XDG_CONFIG_HOME/steward/config.json`
+or `~/.config/steward/config.json`; override it with `STEWARD_CONFIG_FILE`.
+It contains no credentials. Selection applies only to the saved API address;
+select again when switching servers. Missing, invalid, or stale selections fail
+explicitly. Use `--workspace <slug>` for a temporary override:
 
 ```sh
 npm run steward -- --workspace personal agent show
@@ -65,18 +80,10 @@ npm run steward -- workspace list
 npm run steward -- --help
 ```
 
-These are local operator commands. Creating a workspace does not start an agent
+These commands authenticate as the human operator through HTTP. Creating a workspace does not start an agent
 or grant it execution authority.
 
 ## HTTP API
-
-After applying migrations, generate a local operator token with
-`openssl rand -hex 32` and set `STEWARD_API_TOKEN` in `.env`. Then run:
-
-```sh
-npm run build
-npm start
-```
 
 The server listens on `127.0.0.1:3000`; set `PORT` in `.env` to change the port.
 Every endpoint requires `Authorization: Bearer <your-token>`. This token identifies
@@ -136,13 +143,17 @@ SQL migrations live in [`src/storage/migrations`](src/storage/migrations).
 Append new timestamp-prefixed files rather than editing applied migrations.
 Migrations run in a transaction; omit transaction-control statements from SQL.
 
+The local-selection migration removes the old shared `workspace_selection` table.
+Existing workspaces and audit events are retained. After upgrading, run
+`workspace use <slug>` again to establish your local selection.
+
 ## Contributing
 
 Keep changes focused and reviewable:
 
 - Group code by domain, separating input schemas, table types, and operations
   when that makes them easier to navigate.
-- Keep CLI handlers focused on parsing arguments, calling operations, and
+- Keep CLI handlers focused on parsing arguments, calling the HTTP API, and
   displaying results.
 - Give tests a specific behavior to verify and a descriptive name. Reuse the
   database isolation helper for PostgreSQL tests.

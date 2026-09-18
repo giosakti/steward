@@ -49,23 +49,18 @@ export function workspaceRoutes(
   app.get(
     '/api/v1/workspaces/:id',
     { schema: { params, querystring } },
-    (request) => showWorkspace(db, { id: request.params.id }),
+    (request) => showWorkspace(db, request.params.id),
   );
   app.get(
     '/api/v1/workspaces/:id/agent',
     { schema: { params, querystring } },
-    (request) => showAgent(db, { id: request.params.id }),
+    (request) => showAgent(db, request.params.id),
   );
   app.patch(
     '/api/v1/workspaces/:id/agent',
     { schema: { params, querystring, body: configureAgentSchema } },
     (request) =>
-      configureAgent(
-        db,
-        request.body,
-        { id: request.params.id },
-        operator(request.id),
-      ),
+      configureAgent(db, request.body, request.params.id, operator(request.id)),
   );
   done();
 }

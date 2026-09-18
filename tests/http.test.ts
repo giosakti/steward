@@ -10,7 +10,6 @@ import { connectDatabase, type Database } from '../src/storage/database.js';
 import {
   configureAgent,
   createWorkspace,
-  useWorkspace,
 } from '../src/workspaces/workspaces.js';
 import type { OperatorContext } from '../src/access/operator.js';
 import { isolated } from './database.js';
@@ -19,7 +18,7 @@ const token = randomUUID();
 const headers = { authorization: `Bearer ${token}` };
 const operator: OperatorContext = {
   actor: 'operator',
-  source: 'workspace-cli',
+  source: 'workspace-http',
 };
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -106,11 +105,8 @@ describe('operator authentication', () => {
         createWorkspace(db, { slug: 'denied', name: 'Denied' }, agent),
       ).rejects.toThrow(/human operator/);
       await expect(
-        configureAgent(db, { title: 'Changed' }, { id: workspace.id }, agent),
+        configureAgent(db, { title: 'Changed' }, workspace.id, agent),
       ).rejects.toThrow(/human operator/);
-      await expect(useWorkspace(db, 'existing', agent)).rejects.toThrow(
-        /human operator/,
-      );
       expect((await client.query('SELECT * FROM events')).rows).toHaveLength(2);
     });
   });
@@ -175,7 +171,7 @@ describe('workspace HTTP operations', () => {
     });
   });
 
-  it('targets UUIDs independently of CLI selection and records trusted caller context', async () => {
+  it('targets the requested UUID and records trusted caller context', async () => {
     await setup(async (app, db, client) => {
       const first = await createWorkspace(
         db,
@@ -187,7 +183,6 @@ describe('workspace HTTP operations', () => {
         { slug: 'second', name: 'Second' },
         operator,
       );
-      await useWorkspace(db, 'first', operator);
       const result = await app.inject({
         method: 'PATCH',
         url: `/api/v1/workspaces/${second.id}/agent`,
@@ -207,13 +202,6 @@ describe('workspace HTTP operations', () => {
           )
         ).rows[0]?.title,
       ).toBe('Steward');
-      expect(
-        (
-          await client.query<{ workspace_id: string }>(
-            'SELECT workspace_id FROM workspace_selection',
-          )
-        ).rows[0]?.workspace_id,
-      ).toBe(first.id);
       const event = (
         await client.query<{ payload: { requestId: string } }>(
           "SELECT payload FROM events WHERE type='AGENT_CONFIGURED'",

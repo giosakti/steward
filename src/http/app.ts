@@ -3,6 +3,7 @@ import bearerAuth from '@fastify/bearer-auth';
 import {
   validatorCompiler,
   serializerCompiler,
+  hasZodFastifySchemaValidationErrors,
 } from '@fastify/type-provider-zod';
 import type { Kysely } from 'kysely';
 import pg from 'pg';
@@ -49,6 +50,12 @@ export function buildApp(db: Kysely<Database>, token: string, logging = false) {
       return reply
         .code(status)
         .send({ code: error.code, error: error.message });
+    }
+    if (hasZodFastifySchemaValidationErrors(error)) {
+      return reply.code(400).send({
+        code: 'INVALID_INPUT',
+        error: error.message,
+      });
     }
     if (error instanceof z.ZodError) {
       return reply.code(400).send({
