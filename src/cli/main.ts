@@ -1,61 +1,38 @@
 #!/usr/bin/env node
+import { resolve } from 'node:path';
+
 import { Command } from 'commander';
-import type { Kysely } from 'kysely';
-import { z } from 'zod';
-import { connectDatabase, type Database } from '../storage/database.js';
-import {
-  createWorkspace,
-  listWorkspaces,
-  showWorkspace,
-  useWorkspace,
-  showAgent,
-  configureAgent,
-} from '../workspaces/workspaces.js';
-import type {
-  CreateWorkspaceInput,
-  ConfigureAgentInput,
-} from '../workspaces/schemas.js';
+
+import { createClient } from './client.js';
+import { saveSelection } from './config.js';
+import { resolveWorkspace } from './workspace.js';
 
 const program = new Command()
   .name('steward')
-  .description('Manage Steward workspaces')
-  .option(
-    '--workspace <slug>',
-    'Override the selected workspace for this command',
-  );
-
+  .description('Manage Steward workspaces through the HTTP API')
+  .option('--workspace <slug>', 'Override the locally selected workspace');
 const selected = () => program.opts<{ workspace?: string }>().workspace;
-
-async function run(fn: (db: Kysely<Database>) => Promise<unknown>) {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error('DATABASE_URL is required');
-  }
-  const db = connectDatabase(connectionString);
-  try {
-    const result = await fn(db);
-    console.log(JSON.stringify(result, null, 2));
-  } finally {
-    await db.destroy();
-  }
-}
+const print = (value: unknown) => console.log(JSON.stringify(value, null, 2));
 
 const workspace = program
   .command('workspace')
   .description('Create, inspect, and select workspaces');
-
 workspace
   .command('create <slug> <name>')
   .description('Create a workspace and its root agent')
   .option('--description <text>', 'Workspace description')
-  .option('--root-path <path>', 'Existing local project directory')
+  .option('--root-path <path>', 'Existing project directory on the server')
   .action(
     async (
       slug: string,
       name: string,
-      options: Pick<CreateWorkspaceInput, 'description' | 'rootPath'>,
+      options: { description?: string; rootPath?: string },
     ) => {
-      await run((db) => createWorkspace(db, { slug, name, ...options }));
+      const body = { slug, name, ...options };
+      if (options.rootPath !== undefined && options.rootPath.trim()) {
+        body.rootPath = resolve(options.rootPath);
+      }
+      print(await createClient().request('/api/v1/workspaces', 'POST', body));
     },
   );
 
@@ -63,29 +40,33 @@ workspace
   .command('list')
   .description('List active workspaces')
   .action(async () => {
-    await run(listWorkspaces);
+    print(await createClient().request('/api/v1/workspaces'));
   });
 
 workspace
   .command('show [slug]')
-  .description('Show a workspace or the current selection')
+  .description('Show a workspace or the local selection')
   .action(async (slug?: string) => {
-    await run((db) => showWorkspace(db, slug ?? selected()));
+    print(await resolveWorkspace(createClient(), slug ?? selected()));
   });
 
 workspace
   .command('use <slug>')
-  .description('Persist the default workspace for this database')
+  .description('Save the selected workspace on this machine')
   .action(async (slug: string) => {
-    await run((db) => useWorkspace(db, slug));
+    const client = createClient();
+    const workspace = await resolveWorkspace(client, slug);
+    await saveSelection(client.apiUrl, workspace.id);
+    print(workspace);
   });
 
 const agent = program
   .command('agent')
   .description('Inspect and configure the root agent');
-
 agent.command('show').action(async () => {
-  await run((db) => showAgent(db, selected()));
+  const client = createClient();
+  const workspace = await resolveWorkspace(client, selected());
+  print(await client.request(`/api/v1/workspaces/${workspace.id}/agent`));
 });
 
 agent
@@ -93,9 +74,23 @@ agent
   .option('--name <name>')
   .option('--title <title>')
   .option('--role-description <text>')
-  .action(async (options: ConfigureAgentInput) => {
-    await run((db) => configureAgent(db, options, selected()));
-  });
+  .action(
+    async (options: {
+      name?: string;
+      title?: string;
+      roleDescription?: string;
+    }) => {
+      const client = createClient();
+      const workspace = await resolveWorkspace(client, selected());
+      print(
+        await client.request(
+          `/api/v1/workspaces/${workspace.id}/agent`,
+          'PATCH',
+          options,
+        ),
+      );
+    },
+  );
 
 try {
   if (process.argv.length === 2) {
@@ -104,13 +99,6 @@ try {
     await program.parseAsync();
   }
 } catch (error) {
-  let message = String(error);
-  if (error instanceof z.ZodError) {
-    message = error.issues.map((issue) => issue.message).join('; ');
-  } else if (error instanceof Error) {
-    message = error.message;
-  }
-
-  console.error(message);
+  console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
 }

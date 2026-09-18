@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
+
+import pg from 'pg';
 import { sql, type Kysely, type Transaction } from 'kysely';
+
+import { validateOperatorActor, type OperatorActor } from '../audit/actor.js';
+import { ApplicationError } from '../errors.js';
 import type { Database } from '../storage/database.js';
 import type { Workspace, Agent } from './types.js';
 import {
@@ -10,66 +15,57 @@ import {
   type ConfigureAgentInput,
 } from './schemas.js';
 
-async function record(
-  db: Transaction<Database>,
-  workspace: string,
-  type: string,
-  data: unknown,
-) {
-  await db
-    .insertInto('events')
-    .values({
-      workspace_id: workspace,
-      type,
-      payload: { actor: 'operator', source: 'workspace-cli', data },
-    })
-    .execute();
-}
-
 // These are explicit local operator commands, not autonomous agent capabilities.
 export async function createWorkspace(
   db: Kysely<Database>,
   input: CreateWorkspaceInput,
+  context: OperatorActor,
 ): Promise<Workspace> {
+  const operator = validateOperatorActor(context);
   const parsed = createWorkspaceSchema.parse(input);
-  let root: string | null = null;
-  if (parsed.rootPath !== undefined) {
-    root = await realpath(parsed.rootPath);
-    if (!(await stat(root)).isDirectory()) {
-      throw new Error('Root path must be a directory');
+  const root = await resolveRootPath(parsed.rootPath);
+
+  try {
+    return await db.transaction().execute(async (trx) => {
+      const id = randomUUID();
+      const agentId = randomUUID();
+      const workspace = await trx
+        .insertInto('workspaces')
+        .values({
+          id,
+          slug: parsed.slug,
+          name: parsed.name,
+          description: parsed.description ?? null,
+          root_path: root,
+          root_agent_id: agentId,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      const agent = await trx
+        .insertInto('agents')
+        .values({
+          id: agentId,
+          workspace_id: id,
+          name: 'Steward',
+          title: 'Steward',
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      await record(trx, id, 'WORKSPACE_CREATED', workspace, operator);
+      await record(trx, id, 'AGENT_CREATED', agent, operator);
+      return workspace;
+    });
+  } catch (error) {
+    if (
+      error instanceof pg.DatabaseError &&
+      error.code === '23505' &&
+      error.constraint === 'workspaces_slug_key'
+    ) {
+      throw new ApplicationError('CONFLICT', 'Workspace slug already exists');
     }
+    throw error;
   }
-
-  return db.transaction().execute(async (trx) => {
-    const id = randomUUID();
-    const agentId = randomUUID();
-    const workspace = await trx
-      .insertInto('workspaces')
-      .values({
-        id,
-        slug: parsed.slug,
-        name: parsed.name,
-        description: parsed.description ?? null,
-        root_path: root,
-        root_agent_id: agentId,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
-    const agent = await trx
-      .insertInto('agents')
-      .values({
-        id: agentId,
-        workspace_id: id,
-        name: 'Steward',
-        title: 'Steward',
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
-
-    await record(trx, id, 'WORKSPACE_CREATED', workspace);
-    await record(trx, id, 'AGENT_CREATED', agent);
-    return workspace;
-  });
 }
 
 export async function listWorkspaces(
@@ -83,64 +79,27 @@ export async function listWorkspaces(
     .execute();
 }
 
-async function resolveWorkspace(
+export async function showWorkspace(
   db: Kysely<Database>,
-  slug?: string,
+  id: string,
 ): Promise<Workspace> {
-  const query = db
-    .selectFrom('workspaces as w')
-    .selectAll('w')
-    .where('w.archived_at', 'is', null);
-  const scopedQuery =
-    slug !== undefined
-      ? query.where('w.slug', '=', slug)
-      : query
-          .innerJoin('workspace_selection as s', 'w.id', 's.workspace_id')
-          .where('s.singleton', '=', true);
-
-  const workspace = await scopedQuery.executeTakeFirst();
+  const workspace = await db
+    .selectFrom('workspaces')
+    .selectAll()
+    .where('id', '=', id)
+    .where('archived_at', 'is', null)
+    .executeTakeFirst();
   if (!workspace) {
-    const message =
-      slug === undefined
-        ? 'No workspace selected; use workspace use <slug> or --workspace <slug>'
-        : `Workspace not found: ${slug}`;
-    throw new Error(message);
+    throw new ApplicationError('NOT_FOUND', `Workspace not found: ${id}`);
   }
   return workspace;
 }
 
-export async function showWorkspace(
-  db: Kysely<Database>,
-  slug?: string,
-): Promise<Workspace> {
-  return resolveWorkspace(db, slug);
-}
-
-export async function useWorkspace(
-  db: Kysely<Database>,
-  slug: string,
-): Promise<Workspace> {
-  return db.transaction().execute(async (trx) => {
-    const workspace = await resolveWorkspace(trx, slug);
-    await trx
-      .insertInto('workspace_selection')
-      .values({ singleton: true, workspace_id: workspace.id })
-      .onConflict((oc) =>
-        oc.column('singleton').doUpdateSet({ workspace_id: workspace.id }),
-      )
-      .execute();
-    await record(trx, workspace.id, 'WORKSPACE_SELECTED', {
-      workspaceId: workspace.id,
-    });
-    return workspace;
-  });
-}
-
 export async function showAgent(
   db: Kysely<Database>,
-  slug?: string,
+  workspaceId: string,
 ): Promise<Agent> {
-  const workspace = await resolveWorkspace(db, slug);
+  const workspace = await showWorkspace(db, workspaceId);
   return db
     .selectFrom('agents')
     .selectAll()
@@ -152,12 +111,14 @@ export async function showAgent(
 export async function configureAgent(
   db: Kysely<Database>,
   input: ConfigureAgentInput,
-  slug?: string,
+  workspaceId: string,
+  context: OperatorActor,
 ): Promise<Agent> {
+  const operator = validateOperatorActor(context);
   const parsed = configureAgentSchema.parse(input);
 
   return db.transaction().execute(async (trx) => {
-    const workspace = await resolveWorkspace(trx, slug);
+    const workspace = await showWorkspace(trx, workspaceId);
     const agent = await trx
       .updateTable('agents')
       .set({
@@ -172,7 +133,58 @@ export async function configureAgent(
       .where('id', '=', workspace.root_agent_id)
       .returningAll()
       .executeTakeFirstOrThrow();
-    await record(trx, workspace.id, 'AGENT_CONFIGURED', agent);
+    await record(trx, workspace.id, 'AGENT_CONFIGURED', agent, operator);
     return agent;
   });
+}
+
+async function resolveRootPath(
+  path: string | undefined,
+): Promise<string | null> {
+  let root: string | null = null;
+  if (path !== undefined) {
+    try {
+      root = await realpath(path);
+      if (!(await stat(root)).isDirectory()) {
+        throw new ApplicationError(
+          'INVALID_INPUT',
+          'Root path must be a directory',
+        );
+      }
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error.code === 'ENOENT' ||
+          error.code === 'ENOTDIR' ||
+          error.code === 'EACCES')
+      ) {
+        throw new ApplicationError(
+          'INVALID_INPUT',
+          `Root path must be an accessible directory (${String(error.code)})`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  return root;
+}
+
+async function record(
+  db: Transaction<Database>,
+  workspace: string,
+  type: string,
+  data: unknown,
+  operator: OperatorActor,
+) {
+  await db
+    .insertInto('events')
+    .values({
+      workspace_id: workspace,
+      type,
+      payload: { ...operator, data },
+    })
+    .execute();
 }

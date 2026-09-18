@@ -3,70 +3,44 @@
 A self-hosted AI system for turning goals into reviewed work and learning from
 human feedback.
 
-Steward is designed to separate reasoning from authority: language models propose
-actions, a decision kernel evaluates them, and constrained executors carry them
-out. Human review and recorded evidence are central to that design.
+Language models propose actions; a decision kernel evaluates them, and
+constrained executors carry them out. Human review and recorded evidence are
+central to the design.
 
-**Status: early development.** You can create workspaces, select a workspace,
-and configure its persistent root agent. Agent execution and learning are not
-implemented yet.
+**Status: early development.** Workspace management and configurable root agents
+are available through an authenticated HTTP API and CLI. Agent execution and
+learning are not implemented yet.
 
 ## Getting started
 
-Requirements:
-
-- Node.js 24 LTS
-- PostgreSQL 18
-- A PostgreSQL database and a role with permission to create tables in it
+Requires Node.js 24 LTS, PostgreSQL 18, and a database role that can create tables.
 
 ```sh
 git clone https://github.com/giosakti/steward.git
 cd steward
 npm ci
 cp .env.example .env
+openssl rand -hex 32
 ```
 
-Edit `.env` with your PostgreSQL credentials and database names, then apply the migrations:
+Set `DATABASE_URL` in `.env` to your database connection URL and
+`STEWARD_API_TOKEN` to the generated token. Keep this human-operator token private;
+do not give it to agents. Commands load `.env` automatically, with existing
+environment variables taking precedence.
 
 ```sh
 npm run db:migrate
+npm run build
+npm run serve
 ```
 
-The application database is selected by `DATABASE_URL`; `steward` is only the
-example name. Repeating `db:migrate` applies only pending migrations.
-
-The npm commands load `.env` automatically. Existing environment
-variables take precedence, and `.env` is gitignored.
-
-## Workspaces
-
-Build the CLI, then create and select a workspace:
+The server listens on `127.0.0.1:3000`. In another terminal:
 
 ```sh
-npm run build
 npm run steward -- workspace create personal "Personal project" --root-path .
 npm run steward -- workspace use personal
-npm run steward -- workspace show
 npm run steward -- agent show
-npm run steward -- agent configure --title "Engineering Lead"
 ```
-
-Each workspace has one root agent, named and titled `Steward` by default.
-`--root-path` is optional and records an existing directory; these commands do
-not modify its files. Agent configuration also accepts `--name` and
-`--role-description`.
-
-The selected workspace persists across commands in the same database. Use
-`--workspace <slug>` to target another workspace without changing that selection:
-
-```sh
-npm run steward -- --workspace personal agent show
-npm run steward -- workspace list
-npm run steward -- --help
-```
-
-These are local operator commands. Creating a workspace does not start an agent
-or grant it execution authority.
 
 ## Running Tests
 
@@ -91,11 +65,17 @@ values and blank lines between logical steps when they make code easier to read.
 ## Database Migration
 
 Run `npm run db:migrate` to apply pending migrations directly with
-node-pg-migrate. No build step is required.
+node-pg-migrate. No build step is required. `DATABASE_URL` selects the application
+database; the name `steward` in `.env.example` is only an example. Repeating the
+command applies only pending migrations.
 
 SQL migrations live in [`src/storage/migrations`](src/storage/migrations).
 Append new timestamp-prefixed files rather than editing applied migrations.
 Migrations run in a transaction; omit transaction-control statements from SQL.
+
+The local-selection migration removes the old shared `workspace_selection` table.
+Existing workspaces and audit events are retained. After upgrading, run
+`workspace use <slug>` again to establish your local selection.
 
 ## Contributing
 
@@ -103,7 +83,7 @@ Keep changes focused and reviewable:
 
 - Group code by domain, separating input schemas, table types, and operations
   when that makes them easier to navigate.
-- Keep CLI handlers focused on parsing arguments, calling operations, and
+- Keep CLI handlers focused on parsing arguments, calling the HTTP API, and
   displaying results.
 - Give tests a specific behavior to verify and a descriptive name. Reuse the
   database isolation helper for PostgreSQL tests.
@@ -112,3 +92,8 @@ Keep changes focused and reviewable:
 GitHub Actions runs formatting, lint, typecheck, clean-database migrations, and
 build/tests for pull requests and pushes to `main`, using Node 24 and a disposable
 PostgreSQL 18 service.
+
+## Documentation
+
+- [Workspaces and CLI](docs/workspaces.md)
+- [HTTP API](docs/http-api.md)

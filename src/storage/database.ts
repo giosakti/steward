@@ -11,7 +11,6 @@ import type { AgentTable, WorkspaceTable } from '../workspaces/types.js';
 export interface Database {
   workspaces: WorkspaceTable;
   agents: AgentTable;
-  workspace_selection: { singleton: Generated<boolean>; workspace_id: string };
   events: {
     id: GeneratedAlways<string>;
     workspace_id: string | null;
