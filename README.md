@@ -80,8 +80,9 @@ npm run typecheck
 npm test
 ```
 
-Tests also load `.env`, build the project, and use temporary schemas in `steward_test`, removing
-them afterward. They do not use the application database.
+Tests run with Vitest. `npm test` loads `.env` and builds the CLI before testing.
+Database tests use temporary schemas in `steward_test`, removing them afterward.
+They do not use the application database. Type checking remains a separate check.
 
 Use `npm run format` to format code with Prettier. ESLint also enforces braces,
 separate variable declarations, and no nested ternaries. Prefer named intermediate
