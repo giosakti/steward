@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -6,7 +5,10 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
 import type pg from 'pg';
+
 import { buildApp } from '../src/http/app.js';
 import { connectDatabase } from '../src/storage/database.js';
 import { isolated } from './database.js';
@@ -19,15 +21,15 @@ type Command = (
   overrides?: NodeJS.ProcessEnv,
 ) => Promise<string>;
 
-async function setup(
-  fn: (
-    command: Command,
-    client: pg.Client,
-    config: string,
-    address: string,
-    close: () => Promise<void>,
-  ) => Promise<void>,
-) {
+interface TestContext {
+  command: Command;
+  client: pg.Client;
+  config: string;
+  address: string;
+  close: () => Promise<void>;
+}
+
+async function setup(fn: (context: TestContext) => Promise<void>) {
   await isolated(async (url, client, schema) => {
     await exec('npm', ['run', 'db:migrate', '--', '--schema', schema], {
       cwd: root,
@@ -57,7 +59,7 @@ async function setup(
         expect(result.stderr).toBe('');
         return result.stdout;
       };
-      await fn(command, client, config, address, () => app.close());
+      await fn({ command, client, config, address, close: () => app.close() });
     } finally {
       await app.close();
       await db.destroy();
@@ -75,7 +77,7 @@ async function create(command: Command, slug: string) {
 
 describe('CLI HTTP client', () => {
   it('creates, lists, and configures workspaces without database credentials', async () => {
-    await setup(async (command, client) => {
+    await setup(async ({ command, client }) => {
       const workspace = await create(command, 'first');
       expect(JSON.parse(await command(['workspace', 'list']))).toMatchObject([
         { id: workspace.id },
@@ -112,7 +114,7 @@ describe('CLI HTTP client', () => {
   });
 
   it('persists the selected UUID locally and keeps explicit overrides temporary', async () => {
-    await setup(async (command, client, config, address) => {
+    await setup(async ({ command, client, config, address }) => {
       const first = await create(command, 'first');
       const second = await create(command, 'second');
       await command(['workspace', 'use', 'first']);
@@ -167,7 +169,7 @@ describe('CLI HTTP client', () => {
   });
 
   it('isolates different local configurations and API addresses', async () => {
-    await setup(async (command, _client, config) => {
+    await setup(async ({ command, config }) => {
       await create(command, 'first');
       await command(['workspace', 'use', 'first']);
       await expect(
@@ -180,7 +182,7 @@ describe('CLI HTTP client', () => {
   });
 
   it('fails closed for corrupted or stale selections and allows explicit recovery', async () => {
-    await setup(async (command, client, config) => {
+    await setup(async ({ command, client, config }) => {
       const workspace = await create(command, 'first');
       await writeFile(config, '{broken');
       await expect(command(['agent', 'show'])).rejects.toThrow(
@@ -196,7 +198,7 @@ describe('CLI HTTP client', () => {
   });
 
   it('reports authentication, validation, conflict, and unavailable-server errors', async () => {
-    await setup(async (command, client, _config, _address, close) => {
+    await setup(async ({ command, client, close }) => {
       await expect(
         command(['workspace', 'list'], { STEWARD_API_TOKEN: '' }),
       ).rejects.toThrow(/STEWARD_API_TOKEN is required/);
@@ -225,7 +227,7 @@ describe('CLI HTTP client', () => {
   });
 
   it('resolves a relative root path from the CLI working directory', async () => {
-    await setup(async (command, _client, config) => {
+    await setup(async ({ command, config }) => {
       const created = JSON.parse(
         await command([
           'workspace',

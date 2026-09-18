@@ -1,8 +1,6 @@
 import axios, { type AxiosResponse } from 'axios';
 import { z } from 'zod';
-import { selectedWorkspace } from './config.js';
 
-const workspaceSchema = z.looseObject({ id: z.uuid(), slug: z.string() });
 const errorSchema = z.object({ code: z.string(), error: z.string() });
 
 export function createClient() {
@@ -71,22 +69,5 @@ export function createClient() {
     return response.data;
   }
 
-  async function workspace(slug?: string) {
-    let id: string;
-    if (slug !== undefined) {
-      const workspaces = z
-        .array(workspaceSchema)
-        .parse(await request('/api/v1/workspaces'));
-      const match = workspaces.find((workspace) => workspace.slug === slug);
-      if (!match) {
-        throw new Error(`Workspace not found: ${slug}`);
-      }
-      id = match.id;
-    } else {
-      id = await selectedWorkspace(apiUrl.origin);
-    }
-    return workspaceSchema.parse(await request(`/api/v1/workspaces/${id}`));
-  }
-
-  return { apiUrl: apiUrl.origin, request, workspace };
+  return { apiUrl: apiUrl.origin, request };
 }

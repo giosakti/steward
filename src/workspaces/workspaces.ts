@@ -1,8 +1,11 @@
-import { validateOperatorActor, type OperatorActor } from '../audit/actor.js';
-import { ApplicationError } from '../errors.js';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
+
+import pg from 'pg';
 import { sql, type Kysely, type Transaction } from 'kysely';
+
+import { validateOperatorActor, type OperatorActor } from '../audit/actor.js';
+import { ApplicationError } from '../errors.js';
 import type { Database } from '../storage/database.js';
 import type { Workspace, Agent } from './types.js';
 import {
@@ -12,23 +15,6 @@ import {
   type ConfigureAgentInput,
 } from './schemas.js';
 
-async function record(
-  db: Transaction<Database>,
-  workspace: string,
-  type: string,
-  data: unknown,
-  operator: OperatorActor,
-) {
-  await db
-    .insertInto('events')
-    .values({
-      workspace_id: workspace,
-      type,
-      payload: { ...operator, data },
-    })
-    .execute();
-}
-
 // These are explicit local operator commands, not autonomous agent capabilities.
 export async function createWorkspace(
   db: Kysely<Database>,
@@ -37,64 +23,49 @@ export async function createWorkspace(
 ): Promise<Workspace> {
   const operator = validateOperatorActor(context);
   const parsed = createWorkspaceSchema.parse(input);
-  let root: string | null = null;
-  if (parsed.rootPath !== undefined) {
-    try {
-      root = await realpath(parsed.rootPath);
-      if (!(await stat(root)).isDirectory()) {
-        throw new ApplicationError(
-          'INVALID_INPUT',
-          'Root path must be a directory',
-        );
-      }
-    } catch (error) {
-      if (
-        error &&
-        typeof error === 'object' &&
-        'code' in error &&
-        (error.code === 'ENOENT' ||
-          error.code === 'ENOTDIR' ||
-          error.code === 'EACCES')
-      ) {
-        throw new ApplicationError(
-          'INVALID_INPUT',
-          `Root path must be an accessible directory (${String(error.code)})`,
-        );
-      }
-      throw error;
+  const root = await resolveRootPath(parsed.rootPath);
+
+  try {
+    return await db.transaction().execute(async (trx) => {
+      const id = randomUUID();
+      const agentId = randomUUID();
+      const workspace = await trx
+        .insertInto('workspaces')
+        .values({
+          id,
+          slug: parsed.slug,
+          name: parsed.name,
+          description: parsed.description ?? null,
+          root_path: root,
+          root_agent_id: agentId,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      const agent = await trx
+        .insertInto('agents')
+        .values({
+          id: agentId,
+          workspace_id: id,
+          name: 'Steward',
+          title: 'Steward',
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      await record(trx, id, 'WORKSPACE_CREATED', workspace, operator);
+      await record(trx, id, 'AGENT_CREATED', agent, operator);
+      return workspace;
+    });
+  } catch (error) {
+    if (
+      error instanceof pg.DatabaseError &&
+      error.code === '23505' &&
+      error.constraint === 'workspaces_slug_key'
+    ) {
+      throw new ApplicationError('CONFLICT', 'Workspace slug already exists');
     }
+    throw error;
   }
-
-  return db.transaction().execute(async (trx) => {
-    const id = randomUUID();
-    const agentId = randomUUID();
-    const workspace = await trx
-      .insertInto('workspaces')
-      .values({
-        id,
-        slug: parsed.slug,
-        name: parsed.name,
-        description: parsed.description ?? null,
-        root_path: root,
-        root_agent_id: agentId,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
-    const agent = await trx
-      .insertInto('agents')
-      .values({
-        id: agentId,
-        workspace_id: id,
-        name: 'Steward',
-        title: 'Steward',
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
-
-    await record(trx, id, 'WORKSPACE_CREATED', workspace, operator);
-    await record(trx, id, 'AGENT_CREATED', agent, operator);
-    return workspace;
-  });
 }
 
 export async function listWorkspaces(
@@ -165,4 +136,55 @@ export async function configureAgent(
     await record(trx, workspace.id, 'AGENT_CONFIGURED', agent, operator);
     return agent;
   });
+}
+
+async function resolveRootPath(
+  path: string | undefined,
+): Promise<string | null> {
+  let root: string | null = null;
+  if (path !== undefined) {
+    try {
+      root = await realpath(path);
+      if (!(await stat(root)).isDirectory()) {
+        throw new ApplicationError(
+          'INVALID_INPUT',
+          'Root path must be a directory',
+        );
+      }
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error.code === 'ENOENT' ||
+          error.code === 'ENOTDIR' ||
+          error.code === 'EACCES')
+      ) {
+        throw new ApplicationError(
+          'INVALID_INPUT',
+          `Root path must be an accessible directory (${String(error.code)})`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  return root;
+}
+
+async function record(
+  db: Transaction<Database>,
+  workspace: string,
+  type: string,
+  data: unknown,
+  operator: OperatorActor,
+) {
+  await db
+    .insertInto('events')
+    .values({
+      workspace_id: workspace,
+      type,
+      payload: { ...operator, data },
+    })
+    .execute();
 }

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import Fastify from 'fastify';
 import bearerAuth from '@fastify/bearer-auth';
 import {
@@ -6,9 +8,8 @@ import {
   hasZodFastifySchemaValidationErrors,
 } from '@fastify/type-provider-zod';
 import type { Kysely } from 'kysely';
-import pg from 'pg';
-import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+
 import type { Database } from '../storage/database.js';
 import { ApplicationError } from '../errors.js';
 import { workspaceRoutes } from '../workspaces/routes.js';
@@ -44,9 +45,12 @@ export function buildApp(db: Kysely<Database>, token: string, logging = false) {
   });
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ApplicationError) {
-      const status = { INVALID_INPUT: 400, NOT_FOUND: 404, FORBIDDEN: 403 }[
-        error.code
-      ];
+      const status = {
+        INVALID_INPUT: 400,
+        NOT_FOUND: 404,
+        FORBIDDEN: 403,
+        CONFLICT: 409,
+      }[error.code];
       return reply
         .code(status)
         .send({ code: error.code, error: error.message });
@@ -62,15 +66,6 @@ export function buildApp(db: Kysely<Database>, token: string, logging = false) {
         code: 'INVALID_INPUT',
         error: error.issues.map((issue) => issue.message).join('; '),
       });
-    }
-    if (
-      error instanceof pg.DatabaseError &&
-      error.code === '23505' &&
-      error.constraint === 'workspaces_slug_key'
-    ) {
-      return reply
-        .code(409)
-        .send({ code: 'CONFLICT', error: 'Workspace slug already exists' });
     }
     if (
       error instanceof Error &&

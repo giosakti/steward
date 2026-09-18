@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
 import { resolve } from 'node:path';
+
+import { Command } from 'commander';
+
 import { createClient } from './client.js';
 import { saveSelection } from './config.js';
+import { resolveWorkspace } from './workspace.js';
 
 const program = new Command()
   .name('steward')
@@ -44,7 +47,7 @@ workspace
   .command('show [slug]')
   .description('Show a workspace or the local selection')
   .action(async (slug?: string) => {
-    print(await createClient().workspace(slug ?? selected()));
+    print(await resolveWorkspace(createClient(), slug ?? selected()));
   });
 
 workspace
@@ -52,7 +55,7 @@ workspace
   .description('Save the selected workspace on this machine')
   .action(async (slug: string) => {
     const client = createClient();
-    const workspace = await client.workspace(slug);
+    const workspace = await resolveWorkspace(client, slug);
     await saveSelection(client.apiUrl, workspace.id);
     print(workspace);
   });
@@ -62,7 +65,7 @@ const agent = program
   .description('Inspect and configure the root agent');
 agent.command('show').action(async () => {
   const client = createClient();
-  const workspace = await client.workspace(selected());
+  const workspace = await resolveWorkspace(client, selected());
   print(await client.request(`/api/v1/workspaces/${workspace.id}/agent`));
 });
 
@@ -78,7 +81,7 @@ agent
       roleDescription?: string;
     }) => {
       const client = createClient();
-      const workspace = await client.workspace(selected());
+      const workspace = await resolveWorkspace(client, selected());
       print(
         await client.request(
           `/api/v1/workspaces/${workspace.id}/agent`,

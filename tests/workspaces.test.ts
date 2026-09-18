@@ -1,11 +1,13 @@
-import type { OperatorActor } from '../src/audit/actor.js';
-import { describe, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+
+import { describe, expect, it } from 'vitest';
 import pg from 'pg';
 import type { Kysely } from 'kysely';
+
+import type { OperatorActor } from '../src/audit/actor.js';
 import { connectDatabase, type Database } from '../src/storage/database.js';
 import { isolated } from './database.js';
 import {
@@ -49,7 +51,10 @@ describe('workspace constraints', () => {
       await createWorkspace(db, { slug: 'first', name: 'First' }, operator);
       await expect(
         createWorkspace(db, { slug: 'first', name: 'Duplicate' }, operator),
-      ).rejects.toThrow(/unique/);
+      ).rejects.toMatchObject({
+        code: 'CONFLICT',
+        message: 'Workspace slug already exists',
+      });
       expect((await pool.query('SELECT * FROM workspaces')).rows).toHaveLength(
         1,
       );
