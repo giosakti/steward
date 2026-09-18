@@ -14,7 +14,7 @@ CREATE TABLE agents (
   id uuid PRIMARY KEY,
   workspace_id uuid NOT NULL UNIQUE REFERENCES workspaces(id),
   name text NOT NULL CHECK (length(btrim(name)) > 0),
-  title text NOT NULL DEFAULT 'Steward' CHECK (length(btrim(title)) > 0),
+  title text NOT NULL CHECK (length(btrim(title)) > 0),
   role_description text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
