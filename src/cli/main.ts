@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import type { OperatorContext } from '../access/operator.js';
 import { Command } from 'commander';
 import type { Kysely } from 'kysely';
 import { z } from 'zod';
@@ -15,6 +16,11 @@ import type {
   CreateWorkspaceInput,
   ConfigureAgentInput,
 } from '../workspaces/schemas.js';
+
+const operator: OperatorContext = {
+  actor: 'operator',
+  source: 'workspace-cli',
+};
 
 const program = new Command()
   .name('steward')
@@ -55,7 +61,9 @@ workspace
       name: string,
       options: Pick<CreateWorkspaceInput, 'description' | 'rootPath'>,
     ) => {
-      await run((db) => createWorkspace(db, { slug, name, ...options }));
+      await run((db) =>
+        createWorkspace(db, { slug, name, ...options }, operator),
+      );
     },
   );
 
@@ -77,7 +85,7 @@ workspace
   .command('use <slug>')
   .description('Persist the default workspace for this database')
   .action(async (slug: string) => {
-    await run((db) => useWorkspace(db, slug));
+    await run((db) => useWorkspace(db, slug, operator));
   });
 
 const agent = program
@@ -94,7 +102,7 @@ agent
   .option('--title <title>')
   .option('--role-description <text>')
   .action(async (options: ConfigureAgentInput) => {
-    await run((db) => configureAgent(db, options, selected()));
+    await run((db) => configureAgent(db, options, selected(), operator));
   });
 
 try {

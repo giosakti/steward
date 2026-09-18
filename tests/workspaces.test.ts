@@ -1,3 +1,4 @@
+import type { OperatorContext } from '../src/access/operator.js';
 import { describe, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -16,6 +17,11 @@ import {
 } from '../src/workspaces/workspaces.js';
 import type { Workspace, Agent } from '../src/workspaces/types.js';
 import type { CreateWorkspaceInput } from '../src/workspaces/schemas.js';
+
+const operator: OperatorContext = {
+  actor: 'operator',
+  source: 'workspace-cli',
+};
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -79,11 +85,15 @@ describe('workspace CLI', () => {
 
   it('persists selection and scopes explicit overrides without changing the selection', async () => {
     await setup(async (pool, url, db) => {
-      await createWorkspace(db, { slug: 'first', name: 'First' });
-      const second = await createWorkspace(db, {
-        slug: 'second',
-        name: 'Second',
-      });
+      await createWorkspace(db, { slug: 'first', name: 'First' }, operator);
+      const second = await createWorkspace(
+        db,
+        {
+          slug: 'second',
+          name: 'Second',
+        },
+        operator,
+      );
       await command(url, ['workspace', 'use', 'first']);
       const original = JSON.parse(
         await command(url, ['agent', 'show']),
@@ -130,8 +140,8 @@ describe('workspace CLI', () => {
       await expect(command(url, ['agent', 'show'])).rejects.toThrow(
         /No workspace selected/,
       );
-      await createWorkspace(db, { slug: 'first', name: 'First' });
-      await useWorkspace(db, 'first');
+      await createWorkspace(db, { slug: 'first', name: 'First' }, operator);
+      await useWorkspace(db, 'first', operator);
       await expect(command(url, ['agent', 'configure'])).rejects.toThrow(
         /Provide --name, --title, or --role-description/,
       );
@@ -145,9 +155,9 @@ describe('workspace CLI', () => {
 describe('workspace constraints', () => {
   it('rejects duplicate slugs without creating extra agents or events', async () => {
     await setup(async (pool, _url, db) => {
-      await createWorkspace(db, { slug: 'first', name: 'First' });
+      await createWorkspace(db, { slug: 'first', name: 'First' }, operator);
       await expect(
-        createWorkspace(db, { slug: 'first', name: 'Duplicate' }),
+        createWorkspace(db, { slug: 'first', name: 'Duplicate' }, operator),
       ).rejects.toThrow(/unique/);
       expect((await pool.query('SELECT * FROM workspaces')).rows).toHaveLength(
         1,
@@ -170,10 +180,14 @@ describe('workspace constraints', () => {
     },
   ])('rejects $name', async ({ sql, error }) => {
     await setup(async (pool, _url, db) => {
-      const workspace = await createWorkspace(db, {
-        slug: 'first',
-        name: 'First',
-      });
+      const workspace = await createWorkspace(
+        db,
+        {
+          slug: 'first',
+          name: 'First',
+        },
+        operator,
+      );
       await expect(
         pool.query(sql, [randomUUID(), workspace.id]),
       ).rejects.toThrow(error);
@@ -182,11 +196,19 @@ describe('workspace constraints', () => {
 
   it('rejects assigning another workspace’s agent as root', async () => {
     await setup(async (pool, _url, db) => {
-      const first = await createWorkspace(db, { slug: 'first', name: 'First' });
-      const second = await createWorkspace(db, {
-        slug: 'second',
-        name: 'Second',
-      });
+      const first = await createWorkspace(
+        db,
+        { slug: 'first', name: 'First' },
+        operator,
+      );
+      const second = await createWorkspace(
+        db,
+        {
+          slug: 'second',
+          name: 'Second',
+        },
+        operator,
+      );
       await expect(
         pool.query('UPDATE workspaces SET root_agent_id=$2 WHERE id=$1', [
           first.id,
@@ -201,10 +223,14 @@ describe('workspace constraints', () => {
 
   it('rejects deleting a workspace’s root agent', async () => {
     await setup(async (pool, _url, db) => {
-      const workspace = await createWorkspace(db, {
-        slug: 'first',
-        name: 'First',
-      });
+      const workspace = await createWorkspace(
+        db,
+        {
+          slug: 'first',
+          name: 'First',
+        },
+        operator,
+      );
       await expect(
         pool.query('DELETE FROM agents WHERE id=$1', [workspace.root_agent_id]),
       ).rejects.toThrow(/foreign key/);
@@ -213,12 +239,18 @@ describe('workspace constraints', () => {
 
   it('preserves selection when the requested workspace does not exist', async () => {
     await setup(async (_pool, _url, db) => {
-      const workspace = await createWorkspace(db, {
-        slug: 'first',
-        name: 'First',
-      });
-      await useWorkspace(db, 'first');
-      await expect(useWorkspace(db, 'missing')).rejects.toThrow(/not found/);
+      const workspace = await createWorkspace(
+        db,
+        {
+          slug: 'first',
+          name: 'First',
+        },
+        operator,
+      );
+      await useWorkspace(db, 'first', operator);
+      await expect(useWorkspace(db, 'missing', operator)).rejects.toThrow(
+        /not found/,
+      );
       expect((await showWorkspace(db)).id).toBe(workspace.id);
     });
   });
@@ -279,7 +311,9 @@ describe('workspace inputs', () => {
     'rejects $name before writing state',
     async ({ input, error }) => {
       await setup(async (pool, _url, db) => {
-        await expect(createWorkspace(db, input)).rejects.toThrow(error);
+        await expect(createWorkspace(db, input, operator)).rejects.toThrow(
+          error,
+        );
         expect(
           (await pool.query('SELECT * FROM workspaces')).rows,
         ).toHaveLength(0);
@@ -291,16 +325,18 @@ describe('workspace inputs', () => {
 
   it('updates only supplied agent fields and permits clearing the role description', async () => {
     await setup(async (_pool, _url, db) => {
-      await createWorkspace(db, { slug: 'valid', name: 'Valid' });
+      await createWorkspace(db, { slug: 'valid', name: 'Valid' }, operator);
       await configureAgent(
         db,
         { name: '  Builder  ', roleDescription: 'Original' },
         'valid',
+        operator,
       );
       const cleared = await configureAgent(
         db,
         { roleDescription: '' },
         'valid',
+        operator,
       );
       expect(cleared.name).toBe('  Builder  ');
       expect(cleared.title).toBe('Steward');
@@ -312,13 +348,13 @@ describe('workspace inputs', () => {
 describe('atomic audit recording', () => {
   it('rolls back agent configuration when its event cannot be recorded', async () => {
     await setup(async (pool, _url, db) => {
-      await createWorkspace(db, { slug: 'valid', name: 'Valid' });
+      await createWorkspace(db, { slug: 'valid', name: 'Valid' }, operator);
       const before = await showAgent(db, 'valid');
       await pool.query(
         "ALTER TABLE events ADD CONSTRAINT reject_configuration CHECK (type <> 'AGENT_CONFIGURED')",
       );
       await expect(
-        configureAgent(db, { title: 'Changed' }, 'valid'),
+        configureAgent(db, { title: 'Changed' }, 'valid', operator),
       ).rejects.toThrow(/reject_configuration/);
       expect(await showAgent(db, 'valid')).toEqual(before);
       expect((await pool.query('SELECT * FROM events')).rows).toHaveLength(2);
@@ -331,7 +367,7 @@ describe('atomic audit recording', () => {
         "ALTER TABLE events ADD CONSTRAINT reject_creation CHECK (type <> 'AGENT_CREATED')",
       );
       await expect(
-        createWorkspace(db, { slug: 'failed', name: 'Failed' }),
+        createWorkspace(db, { slug: 'failed', name: 'Failed' }, operator),
       ).rejects.toThrow(/reject_creation/);
       expect((await pool.query('SELECT * FROM workspaces')).rows).toHaveLength(
         0,
@@ -343,15 +379,19 @@ describe('atomic audit recording', () => {
 
   it('rolls back selection when its event cannot be recorded', async () => {
     await setup(async (pool, _url, db) => {
-      const first = await createWorkspace(db, { slug: 'first', name: 'First' });
-      await createWorkspace(db, { slug: 'second', name: 'Second' });
-      await useWorkspace(db, 'first');
+      const first = await createWorkspace(
+        db,
+        { slug: 'first', name: 'First' },
+        operator,
+      );
+      await createWorkspace(db, { slug: 'second', name: 'Second' }, operator);
+      await useWorkspace(db, 'first', operator);
       const before = (await pool.query('SELECT * FROM events ORDER BY id'))
         .rows;
       await pool.query(
         "ALTER TABLE events ADD CONSTRAINT reject_selection CHECK (type <> 'WORKSPACE_SELECTED') NOT VALID",
       );
-      await expect(useWorkspace(db, 'second')).rejects.toThrow(
+      await expect(useWorkspace(db, 'second', operator)).rejects.toThrow(
         /reject_selection/,
       );
       expect((await showWorkspace(db)).id).toBe(first.id);
