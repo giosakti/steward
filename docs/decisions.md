@@ -4,7 +4,11 @@ The first Decision Kernel slice evaluates proposed root-agent configuration
 changes. It records `ALLOW`, `DENY`, or `ESCALATE` and the evidence behind the
 outcome. **Evaluation never changes the agent and issues no execution credential.**
 Existing workspace configuration commands remain explicit human-operator actions.
-Agent authentication and execution are not exposed yet.
+These endpoints support operator-driven evaluation during bootstrapping. They do
+not implement a running root agent. Root-agent reasoning/model configuration,
+authentication, wakeups (manual, event-driven, or periodic), and executor invocation
+will be added in later increments. All wakeup sources will feed the same proposal
+and evaluation flow; waking an agent does not authorize its actions.
 
 ## Configuration
 
@@ -19,6 +23,9 @@ requested explicitly. The returned model identifier and token usage are preserve
 ## API flow
 
 All routes require the existing human-operator bearer token. Use workspace UUIDs.
+Do not give this token to the root agent or an executor. Future agent access needs
+its own authenticated identity and permissions; the operator token must not become
+an agent credential.
 
 1. `POST /api/v1/workspaces/:workspaceId/action-intents` records a proposal.
 2. `GET /api/v1/workspaces/:workspaceId/action-intents/:id` retrieves it.
