@@ -7,7 +7,7 @@ Steward is designed to separate reasoning from authority: language models propos
 actions, a decision kernel evaluates them, and constrained executors carry them
 out. Human review and recorded evidence are central to that design.
 
-**Status: early development.** The current foundation provides a CLI for
+**Status: early development.** The current foundation provides
 PostgreSQL migrations and an append-only event log. Agent execution and learning
 are not implemented yet.
 
@@ -29,21 +29,14 @@ cp .env.example .env
 Edit `.env` with your PostgreSQL credentials and database names, then apply the migrations:
 
 ```sh
-npm run build
 npm run db:migrate
 ```
 
 The application database is selected by `DATABASE_URL`; `steward` is only the
 example name. Repeating `db:migrate` applies only pending migrations.
 
-For available commands:
-
-```sh
-npm run steward -- --help
-```
-
-The CLI loads `.env` from the current directory automatically. Existing
-environment variables take precedence, and `.env` is gitignored.
+Migration and test commands load `.env` automatically. Existing environment
+variables take precedence, and `.env` is gitignored.
 
 ## Running Tests
 
@@ -61,8 +54,8 @@ them afterward. They do not use the application database.
 
 ## Database Migration
 
-Run `npm run db:migrate` (equivalent to `npm run steward -- db migrate`)
-to apply pending migrations.
+Run `npm run db:migrate` to apply pending migrations directly with
+node-pg-migrate. No build step is required.
 
 SQL migrations live in [`src/storage/migrations`](src/storage/migrations).
 Append new timestamp-prefixed files rather than editing applied migrations.

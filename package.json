@@ -7,15 +7,13 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "build": "tsc && node scripts/copy-migrations.mjs",
+    "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --env-file-if-exists=.env --test dist/tests/*.test.js",
-    "steward": "node dist/src/cli/main.js",
-    "db:migrate": "npm run steward -- db migrate",
+    "db:migrate": "node --env-file-if-exists=.env node_modules/node-pg-migrate/bin/node-pg-migrate.js up --migrations-dir src/storage/migrations --advisory-lock-mode wait --no-verbose",
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
-    "commander": "15.0.0",
     "node-pg-migrate": "9.0.0",
     "pg": "8.23.0"
   },

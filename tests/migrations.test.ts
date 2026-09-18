@@ -4,14 +4,14 @@ import {randomUUID} from 'node:crypto';
 import {mkdtemp, writeFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {pathToFileURL} from 'node:url';
+import {fileURLToPath} from 'node:url';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import pg from 'pg';
-import {migrate} from '../src/storage/migrate.js';
 const exec = promisify(execFile);
 const url = process.env.TEST_DATABASE_URL;
 if (!url || new URL(url).pathname !== '/steward_test') throw new Error('TEST_DATABASE_URL must target the separate steward_test database');
+const root = fileURLToPath(new URL('../../', import.meta.url));
 
 async function isolated(fn: (url: string, client: pg.Client, schema: string) => Promise<void>) {
   const schema = `test_${randomUUID().replaceAll('-', '')}`;
@@ -31,14 +31,21 @@ async function isolated(fn: (url: string, client: pg.Client, schema: string) => 
   }
 }
 
-await test('clean initialization persists across processes, repeats safely, and protects events', async () => {
+function migrate(url: string, schema: string, directory?: string) {
+  const args = ['run', 'db:migrate', '--', '--schema', schema];
+  if (directory) return exec(process.execPath, [
+    join(root, 'node_modules/node-pg-migrate/bin/node-pg-migrate.js'), 'up',
+    '--migrations-dir', directory, '--schema', schema, '--no-verbose',
+  ], {cwd: root, env: {...process.env, DATABASE_URL: url}});
+  return exec('npm', args, {cwd: root, env: {...process.env, DATABASE_URL: url}});
+}
+
+await test('npm migration command persists across processes, repeats safely, and protects events', async () => {
   await isolated(async (url, client, schema) => {
-    const cli = new URL('../src/cli/main.js', import.meta.url);
-    const args = [cli.pathname, 'db', 'migrate', '--schema', schema];
-    const first = await exec(process.execPath, args, {env: {...process.env, DATABASE_URL: url}});
-    assert.match(first.stdout, /Applied: 1789689600000_events/);
-    const second = await exec(process.execPath, args, {env: {...process.env, DATABASE_URL: url}});
-    assert.match(second.stdout, /Database is up to date/);
+    const first = await migrate(url, schema);
+    assert.match(first.stdout, /1789689600000_events/);
+    const second = await migrate(url, schema);
+    assert.match(second.stdout, /No migrations to run/);
     await client.query("INSERT INTO events(type, payload) VALUES ('BOOTSTRAP_TEST', '{\"note\":\"preserve\"}')");
     for (const sql of ["UPDATE events SET type='changed'", 'DELETE FROM events', 'TRUNCATE events']) {
       await assert.rejects(client.query(sql), /append-only/);
@@ -48,49 +55,42 @@ await test('clean initialization persists across processes, repeats safely, and 
   });
 });
 
-await test('concurrent initialization applies each migration once', async () => {
+await test('concurrent migration commands apply each migration once', async () => {
   await isolated(async (url, client, schema) => {
-    const results = await Promise.all([migrate(url, undefined, schema), migrate(url, undefined, schema)]);
-    assert.equal(results.flat().length, 1);
+    await Promise.all([migrate(url, schema), migrate(url, schema)]);
     assert.equal((await client.query<{count: string}>('SELECT count(*) FROM pgmigrations')).rows[0]?.count, '1');
   });
 });
 
 await test('failed SQL rolls back schema and history, then a corrected migration succeeds', async () => {
-  const path = await mkdtemp(join(tmpdir(), 'steward-migrations-'));
-  const directory = pathToFileURL(`${path}/`);
+  const directory = await mkdtemp(join(tmpdir(), 'steward-migrations-'));
   try {
-    await writeFile(join(path, '0001_sample.sql'), 'CREATE TABLE sample (id int);');
-    await writeFile(join(path, '0002_broken.sql'), 'SELECT nonexistent_column;');
+    await writeFile(join(directory, '0001_sample.sql'), 'CREATE TABLE sample (id int);');
+    await writeFile(join(directory, '0002_broken.sql'), 'SELECT nonexistent_column;');
     await isolated(async (url, client, schema) => {
-      await assert.rejects(migrate(url, directory, schema), /nonexistent_column/);
+      await assert.rejects(migrate(url, schema, directory), /nonexistent_column/);
       assert.equal((await client.query<{name: string | null}>("SELECT to_regclass('sample') AS name")).rows[0]?.name, null);
       assert.equal((await client.query<{count: string}>('SELECT count(*) FROM pgmigrations')).rows[0]?.count, '0');
-      await writeFile(join(path, '0002_broken.sql'), 'ALTER TABLE sample ADD COLUMN label text;');
-      assert.equal((await migrate(url, directory, schema)).length, 2);
-      // The standard runner checks ordering, not SQL checksums.
-      await writeFile(join(path, '0000_earlier.sql'), 'CREATE TABLE earlier (id int);');
-      await assert.rejects(migrate(url, directory, schema), /preceding already run migration/);
+      await writeFile(join(directory, '0002_broken.sql'), 'ALTER TABLE sample ADD COLUMN label text;');
+      await migrate(url, schema, directory);
+      await writeFile(join(directory, '0000_earlier.sql'), 'CREATE TABLE earlier (id int);');
+      await assert.rejects(migrate(url, schema, directory), /preceding already run migration/);
       assert.equal((await client.query<{count: string}>('SELECT count(*) FROM pgmigrations')).rows[0]?.count, '2');
     });
-  } finally { await rm(path, {recursive: true, force: true}); }
+  } finally { await rm(directory, {recursive: true, force: true}); }
 });
 
-await test('CLI loads .env, preserves environment precedence, and works without a file', async () => {
-  const cli = new URL('../src/cli/main.js', import.meta.url).pathname;
-  const cwd = await mkdtemp(join(tmpdir(), 'steward-cli-env-'));
+await test('migration invocation loads .env and preserves environment precedence', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'steward-env-'));
   const env = {...process.env}; delete env.DATABASE_URL;
+  const bin = join(root, 'node_modules/node-pg-migrate/bin/node-pg-migrate.js');
   try {
-    assert.match((await exec(process.execPath, [cli, '--help'], {env, cwd})).stdout, /db/);
-    await assert.rejects(exec(process.execPath, [cli, 'db', 'migrate'], {env, cwd}), /DATABASE_URL is required/);
-    await assert.rejects(exec(process.execPath, [cli, 'unknown'], {env, cwd}), /unknown command/);
-    await assert.rejects(exec(process.execPath, [cli, 'init'], {env, cwd}), /unknown command/);
-    assert.match((await exec(process.execPath, [cli, 'db', '--help'], {env, cwd})).stdout, /migrate/);
     await isolated(async (url, _client, schema) => {
+      const args = ['--env-file-if-exists=.env', bin, 'up', '--migrations-dir', join(root, 'src/storage/migrations'), '--schema', schema, '--no-verbose'];
       await writeFile(join(cwd, '.env'), `DATABASE_URL=${url}\n`);
-      assert.match((await exec(process.execPath, [cli, 'db', 'migrate', '--schema', schema], {env, cwd})).stdout, /Applied:/);
+      assert.match((await exec(process.execPath, args, {env, cwd})).stdout, /1789689600000_events/);
       await writeFile(join(cwd, '.env'), 'DATABASE_URL=postgresql://invalid:invalid@127.0.0.1:1/invalid\n');
-      assert.match((await exec(process.execPath, [cli, 'db', 'migrate', '--schema', schema], {env: {...env, DATABASE_URL: url}, cwd})).stdout, /up to date/);
+      assert.match((await exec(process.execPath, args, {env: {...env, DATABASE_URL: url}, cwd})).stdout, /No migrations to run/);
     });
   } finally { await rm(cwd, {recursive: true, force: true}); }
 });
