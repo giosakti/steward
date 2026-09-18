@@ -16,8 +16,10 @@
   },
   "dependencies": {
     "commander": "15.0.0",
+    "kysely": "0.29.6",
     "node-pg-migrate": "9.0.0",
-    "pg": "8.23.0"
+    "pg": "8.23.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
