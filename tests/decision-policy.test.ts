@@ -1,42 +1,60 @@
 import { describe, expect, it } from 'vitest';
 
-import { assessResponse, minimumProbability } from '../src/decisions/policy.js';
-import { response } from './decision-fixtures.js';
+import {
+  assessResponse,
+  checkPrerequisites,
+  evaluationRequest,
+} from '../src/decisions/policy.js';
+import { policySchema, preparationSchema } from '../src/decisions/schemas.js';
+import {
+  policy,
+  preparation,
+  proposal,
+  response,
+} from './decision-fixtures.js';
 
-describe('semantic decision policy', () => {
-  it('allows only when all independent predicates meet the probability threshold', () => {
-    expect(assessResponse(response()).outcome).toBe('ALLOW');
+describe('decision policy composition', () => {
+  it('requires every predicate to meet its own policy threshold', () => {
+    const rules = policy();
     const raw = response();
+    expect(assessResponse(raw, rules).outcome).toBe('ALLOW');
     raw.answers.scope_is_minimal.probabilities = {
-      BOUNDED: minimumProbability,
+      BOUNDED: 0.9,
       EXCESSIVE: 0.05,
       UNCLEAR: 0.05,
     };
-    expect(assessResponse(raw).outcome).toBe('ALLOW');
+    expect(assessResponse(raw, rules).outcome).toBe('ALLOW');
     raw.answers.scope_is_minimal.probabilities = {
       BOUNDED: 0.899,
       EXCESSIVE: 0.051,
       UNCLEAR: 0.05,
     };
-    expect(assessResponse(raw).outcome).toBe('ESCALATE');
+    expect(assessResponse(raw, rules).outcome).toBe('ESCALATE');
+    rules.predicates.scope_is_minimal!.minimumProbability = 0.95;
+    raw.answers.scope_is_minimal.probabilities = {
+      BOUNDED: 0.94,
+      EXCESSIVE: 0.03,
+      UNCLEAR: 0.03,
+    };
+    expect(assessResponse(raw, rules).outcome).toBe('ESCALATE');
   });
 
-  it('denies established conflicts and escalates ambiguity even when confidence is high', () => {
+  it('denies established conflicts and escalates uncertainty regardless of confidence', () => {
     const raw = response();
-    raw.answers.authority_is_preserved.choice = 'EXPANDED';
-    raw.answers.authority_is_preserved.probabilities = {
-      PRESERVED: 0.01,
-      EXPANDED: 0.98,
+    raw.answers.scope_is_minimal.choice = 'EXCESSIVE';
+    raw.answers.scope_is_minimal.probabilities = {
+      BOUNDED: 0.01,
+      EXCESSIVE: 0.98,
       UNCLEAR: 0.01,
     };
-    expect(assessResponse(raw).outcome).toBe('DENY');
-    raw.answers.authority_is_preserved.choice = 'UNCLEAR';
-    raw.answers.authority_is_preserved.probabilities = {
-      PRESERVED: 0.01,
-      EXPANDED: 0.01,
+    expect(assessResponse(raw, policy()).outcome).toBe('DENY');
+    raw.answers.scope_is_minimal.choice = 'UNCLEAR';
+    raw.answers.scope_is_minimal.probabilities = {
+      BOUNDED: 0.01,
+      EXCESSIVE: 0.01,
       UNCLEAR: 0.98,
     };
-    expect(assessResponse(raw).outcome).toBe('ESCALATE');
+    expect(assessResponse(raw, policy()).outcome).toBe('ESCALATE');
   });
 
   it.each([
@@ -62,13 +80,76 @@ describe('semantic decision policy', () => {
       ...response(),
       answers: {
         ...response().answers,
-        effect_matches_objective: {
-          ...response().answers.effect_matches_objective,
+        action_satisfies_work_item: {
+          ...response().answers.action_satisfies_work_item,
           ...patch,
         },
       },
     })),
   ])('rejects malformed or incomplete external answers (%#)', (raw) => {
-    expect(() => assessResponse(raw)).toThrow();
+    expect(() => assessResponse(raw, policy())).toThrow();
+  });
+
+  it('requires a nonempty, internally consistent policy and source-backed context', () => {
+    expect(() =>
+      assessResponse(
+        { ...response(), answers: {} },
+        { ...policy(), predicates: {} },
+      ),
+    ).toThrow();
+    for (const patch of [
+      { acceptedChoice: 'INVENTED' },
+      { deniedChoices: ['MATCHES'] },
+      { minimumProbability: 0 },
+      { minimumProbability: 2 },
+    ]) {
+      const rules = policy();
+      Object.assign(rules.predicates.action_satisfies_work_item!, patch);
+      expect(() => policySchema.parse(rules)).toThrow();
+    }
+    expect(() =>
+      preparationSchema.parse({
+        ...preparation(),
+        context: { facts: {}, sources: [] },
+      }),
+    ).toThrow();
+  });
+
+  it('keeps deterministic denial above absent context and checks action/risk policy binding', () => {
+    const prepared = preparation();
+    expect(checkPrerequisites(proposal(), prepared)).toBeNull();
+    expect(
+      checkPrerequisites({ ...proposal(), type: 'deploy' }, prepared)?.outcome,
+    ).toBe('DENY');
+    expect(
+      checkPrerequisites({ ...proposal(), riskClass: 'READ_ONLY' }, prepared)
+        ?.outcome,
+    ).toBe('DENY');
+    for (const patch of [{ context: null }, { policy: null }, { checks: [] }]) {
+      expect(
+        checkPrerequisites(proposal(), { ...prepared, ...patch })?.outcome,
+      ).toBe('ESCALATE');
+    }
+    expect(
+      checkPrerequisites(proposal(), {
+        ...prepared,
+        context: null,
+        policy: null,
+        checks: [{ name: 'scope', passed: false, evidence: 'Wrong workspace' }],
+      })?.outcome,
+    ).toBe('DENY');
+  });
+
+  it('keeps proposal claims distinct from supplied facts and batches policy questions', () => {
+    const prepared = preparation();
+    const request = evaluationRequest(proposal(), prepared);
+    expect(request.state).toEqual({
+      proposal: proposal(),
+      context: prepared.context,
+    });
+    expect(Object.keys(request.questions)).toEqual([
+      'action_satisfies_work_item',
+      'scope_is_minimal',
+    ]);
   });
 });

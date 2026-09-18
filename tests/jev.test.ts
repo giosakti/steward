@@ -1,14 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createJevEvaluator } from '../src/decisions/jev.js';
-import { questions } from '../src/decisions/policy.js';
-import { response } from './decision-fixtures.js';
+import { preparation, proposal, response } from './decision-fixtures.js';
+import { evaluationRequest } from '../src/decisions/policy.js';
 
-const request = {
-  model: 'jev-latest',
-  state: { example: 'configuration proposal' },
-  questions,
-};
+const request = evaluationRequest(proposal(), preparation());
 
 afterEach(() => vi.unstubAllGlobals());
 

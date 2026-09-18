@@ -7,21 +7,18 @@ import { validateOperatorActor, type OperatorActor } from '../audit/actor.js';
 import { ApplicationError } from '../errors.js';
 import type { Database } from '../storage/database.js';
 import { showWorkspace } from '../workspaces/workspaces.js';
-import { fingerprint, resolveContext } from './context.js';
 import type { EvaluateJev } from './jev.js';
 import {
   assessResponse,
-  deterministicChecks,
+  checkPrerequisites,
   evaluationRequest,
-  policyVersion,
 } from './policy.js';
-import { actionIntentSchema } from './schemas.js';
-import type {
-  ActionIntent,
-  Decision,
-  DecisionEvidence,
-  Outcome,
-} from './types.js';
+import {
+  actionIntentSchema,
+  preparationSchema,
+  type PreparedDecision,
+} from './schemas.js';
+import type { ActionIntent, Decision, DecisionEvidence } from './types.js';
 
 export async function createActionIntent(
   db: Kysely<Database>,
@@ -71,35 +68,35 @@ export async function showActionIntent(
   return intent;
 }
 
+// Internal entry point for future Work Item/Run orchestration. The preparation
+// must come from trusted resolvers and policy code, not a proposal's author.
+// This records an evaluation; no executor may treat it as an execution grant.
 export async function evaluateIntent(
   db: Kysely<Database>,
   workspaceId: string,
   intentId: string,
+  prepared: PreparedDecision,
   actor: OperatorActor,
   evaluateJev: EvaluateJev,
 ): Promise<Decision> {
   const operator = validateOperatorActor(actor);
   const intent = await showActionIntent(db, workspaceId, intentId);
-  const context = await resolveContext(db, workspaceId);
-  const checks = deterministicChecks(intent.proposal, context);
-  const denied = checks.some((check) => !check.passed);
-  const request = denied ? null : evaluationRequest(intent.proposal, context);
+  const preparation = preparationSchema.parse(prepared);
+  const prerequisite = checkPrerequisites(intent.proposal, preparation);
+  const request = prerequisite
+    ? null
+    : evaluationRequest(intent.proposal, preparation);
   const id = randomUUID();
+  const policyVersion = preparation.policy?.version ?? 'NO_POLICY';
   const evidence: DecisionEvidence = {
-    context,
-    recheckedContext: null,
-    stateFingerprint: fingerprint(context),
-    checks,
+    ...preparation,
     request,
     response: null,
     evaluationError: null,
     assessments: [],
-    reason: denied
-      ? 'Deterministic check failed'
-      : 'Awaiting semantic evaluation',
+    reason: prerequisite?.reason ?? 'Awaiting semantic evaluation',
   };
-  // Durable before the network call. An interrupted attempt remains inspectable;
-  // it has a request event but no Decision, and cannot imply ALLOW.
+  // Durable before the network call. An interrupted attempt cannot imply ALLOW.
   await db
     .insertInto('events')
     .values({
@@ -115,37 +112,26 @@ export async function evaluateIntent(
     })
     .execute();
 
-  let outcome: Outcome = 'DENY';
-  if (request) {
+  let outcome = prerequisite?.outcome ?? 'ESCALATE';
+  if (request && preparation.policy) {
+    let failure: 'JEV_UNAVAILABLE' | 'INVALID_RESPONSE' = 'JEV_UNAVAILABLE';
     try {
-      // The SDK boundary is external data even though its TypeScript types are known.
-      evidence.response = z.json().parse(await evaluateJev(request));
-      const assessment = assessResponse(evidence.response);
+      const raw = await evaluateJev(request);
+      failure = 'INVALID_RESPONSE';
+      evidence.response = z.json().parse(raw);
+      const assessment = assessResponse(evidence.response, preparation.policy);
       outcome = assessment.outcome;
       evidence.assessments = assessment.assessments;
       evidence.reason = assessment.reason;
     } catch {
       outcome = 'ESCALATE';
-      // Do not serialize SDK errors: they may include request credentials.
-      evidence.evaluationError = 'Jev unavailable or response invalid';
+      // Raw SDK errors may include credentials. Persist only a failure category.
+      evidence.evaluationError = failure;
       evidence.reason = 'Semantic evaluation could not be established';
     }
   }
 
   return db.transaction().execute(async (trx) => {
-    const current = await resolveContext(trx, workspaceId, true);
-    evidence.recheckedContext = current;
-    const unchanged = fingerprint(current) === evidence.stateFingerprint;
-    evidence.checks.push({
-      name: 'state_unchanged',
-      passed: unchanged,
-      evidence: `Evaluated ${evidence.stateFingerprint}; current ${fingerprint(current)}`,
-    });
-    if (!unchanged && outcome !== 'DENY') {
-      outcome = 'ESCALATE';
-      evidence.reason =
-        'Authoritative state changed during evaluation; submit a new evaluation';
-    }
     const decision = await trx
       .insertInto('decisions')
       .values({

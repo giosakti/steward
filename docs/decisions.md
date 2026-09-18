@@ -1,103 +1,89 @@
-# Decision evaluation
+# Decision Kernel foundation
 
-The first Decision Kernel slice evaluates proposed root-agent configuration
-changes. It records `ALLOW`, `DENY`, or `ESCALATE` and the evidence behind the
-outcome. **Evaluation never changes the agent and issues no execution credential.**
-Existing workspace configuration commands remain explicit human-operator actions.
-These endpoints support operator-driven evaluation during bootstrapping. They do
-not implement a running root agent. Root-agent reasoning/model configuration,
-authentication, wakeups (manual, event-driven, or periodic), and executor invocation
-will be added in later increments. All wakeup sources will feed the same proposal
-and evaluation flow; waking an agent does not authorize its actions.
+This increment adds internal decision evaluation and evidence storage. It does
+not add a user workflow or HTTP endpoints. No action policy is registered, and
+root-agent configuration is not evaluated by the kernel. Existing configuration
+commands remain explicit human-operator operations.
 
-## Configuration
+## Relationship to Work Items and Runs
 
-Set `TYPESAFE_API_KEY` in the server's `.env`, then rebuild and restart the server.
-The CLI does not need this key. Without it, valid evaluation requests are recorded
-as `ESCALATE`; workspace management continues to work.
+A Work Item describes work to accomplish; a Run is an attempt to execute it.
+The kernel evaluates specific consequential actions associated with that work,
+rather than assigning one general score to an entire Run.
 
-The official `@typesafe-ai/sdk` calls `jev-latest` with all predicates in one
-request, a 30-second timeout, and no automatic retries. A new evaluation must be
-requested explicitly. The returned model identifier and token usage are preserved.
+For the self-building workflow, later increments will connect decisions to:
 
-## API flow
+- Starting a bounded execution attempt for a Work Item.
+- Proposed consequential actions within that attempt.
+- Verification of actual results against the Work Item and validation evidence.
+- Applying an exact reviewed result, with current state and required approval.
 
-All routes require the existing human-operator bearer token. Use workspace UUIDs.
-Do not give this token to the root agent or an executor. Future agent access needs
-its own authenticated identity and permissions; the operator token must not become
-an agent credential.
+Those policies need authoritative Work Item, Run, repository, validation, and
+review records. They will be implemented alongside those capabilities. This
+foundation does not substitute agent configuration for that workflow.
 
-1. `POST /api/v1/workspaces/:workspaceId/action-intents` records a proposal.
-2. `GET /api/v1/workspaces/:workspaceId/action-intents/:id` retrieves it.
-3. `POST /api/v1/workspaces/:workspaceId/action-intents/:id/decisions` with `{}`
-   evaluates it against freshly retrieved state.
-4. `GET /api/v1/workspaces/:workspaceId/decisions/:id` retrieves the decision.
+## What is implemented
 
-Both POST operations return `201` and a `Location` header. Input errors return
-`400`; missing or cross-workspace records return `404`. A recorded `DENY` or
-`ESCALATE` is a successful evaluation response, not an HTTP error.
+- Workspace-scoped, append-only Action Intent and Decision records.
+- An internal evaluation function that accepts prepared context, deterministic
+  checks, and an explicit action policy from trusted application code.
+- `ALLOW`, `DENY`, and `ESCALATE` composition with deterministic denial taking
+  precedence. Missing policy, context, or checks prevents `ALLOW` and skips Jev.
+- The official TypeSafe SDK adapter for batched Choice questions, with a
+  30-second timeout and no automatic retries.
+- Durable request evidence before the external call, followed by an atomic
+  decision and outcome-event write.
 
-Example proposal (replace the UUID placeholders):
+A proposal contains the requested action, objective, rationale, intended scope,
+optional target, expected effect, and claimed risk class. Proposal claims are
+kept separate from context facts. A claimed target is not an authoritative target.
 
-```json
-{
-  "type": "configure_agent",
-  "objective": "Set the root agent display title to Engineering Lead",
-  "rationale": "Make the displayed responsibility clear",
-  "intendedScope": "<workspace UUID>",
-  "intendedTarget": "<root agent UUID>",
-  "expectedEffect": "The agent title becomes Engineering Lead",
-  "riskClass": "LOCAL_REVERSIBLE",
-  "parameters": { "title": "Engineering Lead" }
-}
-```
+A prepared policy names its action type and risk class, its version, and each
+required semantic predicate's question, accepted and denied choices, and minimum
+probability. The proposal must match the policy's action type and risk class.
+There are no default semantic questions or production probability thresholds.
 
-`parameters` accepts the existing agent configuration fields. Caller identity,
-context snapshots, policy, thresholds, and outcomes cannot be supplied by clients.
-The submission identity is recorded from the authenticated HTTP entry point.
+Every required predicate must meet its policy's acceptance threshold for `ALLOW`.
+An established conflicting choice yields `DENY`; remaining uncertainty escalates.
+Incomplete or malformed distributions cannot authorize anything. Model confidence
+is recorded separately and does not stand for a probability of safe execution.
 
-## Policy and evidence
+## Evidence and failure behavior
 
-The context resolver joins the workspace to its actual root agent in PostgreSQL.
-It does not fetch a target merely because the proposal names it. Each snapshot
-contains record references and a fingerprint.
+Each Decision preserves the supplied context and source references, deterministic
+checks, full policy definition, exact Jev request, JSON response, assessments,
+thresholds, and outcome reason. The returned model identifier and usage are
+preserved. Tests can replay policy composition from the stored evidence.
 
-Deterministic checks require an active workspace, matching scope and root-agent
-UUID, the supported `configure_agent` action, and its policy-defined
-`LOCAL_REVERSIBLE` risk class. Unsupported actions and risk mismatches are denied
-without calling Jev. Other risk classes are represented but have no action policy
-or execution support in this increment.
-
-Jev assesses three independent questions:
-
-- Do the proposed field changes implement the stated objective and effect?
-- Is each proposed change necessary for that objective?
-- Does the proposal preserve the distinction between agent description and authority?
-
-Each question includes an explicit uncertain answer. Policy requires the accepted
-choice to have probability at least `0.9` for every predicate. A conflicting choice
-at that threshold yields `DENY`; other valid distributions yield `ESCALATE`.
-Malformed or missing answers and service failures also escalate. Confidence is
-recorded but is not treated as a probability of safe execution.
-
-**The threshold is provisional and uncalibrated.** This slice establishes evidence
-collection and policy mechanics, not demonstrated safety for autonomous changes.
-It evaluates the proposal's internal consistency against workspace state; it does
-not claim alignment with missions, work items, or canonical knowledge, which do
-not exist yet. Those capabilities require subsequent policy revisions.
-
-The kernel records `DECISION_REQUESTED` before contacting Jev. Before storing the
-outcome, it reloads and locks the relevant database rows in a short transaction.
-Changed state prevents `ALLOW`. Decisions preserve the snapshot, exact Jev request,
-JSON response, assessments, thresholds, policy version, checks, and failure status.
-Proposals and decisions are append-only; the outcome event and decision commit
-atomically. Raw SDK errors are not persisted because they can contain credentials.
+The kernel records `DECISION_REQUESTED` before contacting Jev. Missing credentials
+or service failures produce `ESCALATE` with `JEV_UNAVAILABLE`; invalid returned
+answers produce `ESCALATE` with `INVALID_RESPONSE`. Raw SDK errors are not stored
+because they can contain credentials.
 
 If the process stops mid-evaluation or the final transaction fails, the request
 event remains without a completed decision. That is an incomplete attempt, never
-permission to act. A later evaluation creates a new decision and retains history.
-A stored `ALLOW` describes that snapshot; it is not reusable authorization after
-state changes.
+permission to act. A later evaluation retains the earlier evidence.
 
-State-bound expiring authorizations, commit-time revalidation, executors, human
-approval/application, and knowledge-aware policy are subsequent increments.
+## Integration boundary and remaining work
+
+The internal preparation argument is not an external API contract. Neither agents
+nor HTTP clients may supply policies, deterministic verdicts, or authoritative
+context. Concrete orchestration must retrieve facts and choose policy itself.
+Do not expose this internal function directly as an HTTP or MCP endpoint.
+
+No production context resolver, Work Item/Run linkage, state fingerprint,
+commit-time revalidation, authorization credential, or executor is implemented
+here. The relevant foreign keys and action-specific state checks will accompany
+the actual models. A recorded `ALLOW` alone is not executable authority and must
+not be reused after the evaluated state changes.
+
+The first real integration will connect a Work Item and Run to a bounded coding
+action. It must establish the authoritative target and scope, select policy,
+verify state before execution, preserve actual results, and keep human approval
+separate from application. Root-agent reasoning, wakeups, and agent authentication
+remain later increments; the operator token must not become an agent credential.
+
+Tests use synthetic Work Item evidence and test-only policies to verify these
+mechanics. They do not establish semantic accuracy or calibrated thresholds.
+There is no server configuration or live Jev call to exercise through the product
+yet; the adapter receives its credential from its future trusted caller.

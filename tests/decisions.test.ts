@@ -15,19 +15,13 @@ import {
   showDecision,
 } from '../src/decisions/decisions.js';
 import { createJevEvaluator, type EvaluateJev } from '../src/decisions/jev.js';
-import { fingerprint } from '../src/decisions/context.js';
 import { assessResponse } from '../src/decisions/policy.js';
-import type { Decision } from '../src/decisions/types.js';
 import { buildApp } from '../src/http/app.js';
 import { connectDatabase, type Database } from '../src/storage/database.js';
-import {
-  createWorkspace,
-  configureAgent,
-  showAgent,
-} from '../src/workspaces/workspaces.js';
+import { createWorkspace, showAgent } from '../src/workspaces/workspaces.js';
 import type { Workspace } from '../src/workspaces/types.js';
 import { isolated } from './database.js';
-import { proposal, response } from './decision-fixtures.js';
+import { preparation, proposal, response } from './decision-fixtures.js';
 
 interface Context {
   db: Kysely<Database>;
@@ -37,7 +31,7 @@ interface Context {
 }
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
-const operator: OperatorActor = { actor: 'operator', source: 'decision-http' };
+const operator: OperatorActor = { actor: 'operator', source: 'workspace-http' };
 
 async function setup(run: (context: Context) => Promise<void>) {
   await isolated(async (url, client, schema) => {
@@ -59,49 +53,45 @@ async function setup(run: (context: Context) => Promise<void>) {
   });
 }
 
-describe('persisted decision evaluation', () => {
-  it('records complete evidence without changing the agent and survives reconnection', async () => {
+describe('decision evidence foundation', () => {
+  it('preserves the supplied context, policy and judgments without executing anything', async () => {
     await setup(async ({ db, client, workspace, url }) => {
       const intent = await createActionIntent(
         db,
         workspace.id,
-        proposal(workspace),
+        proposal(),
         operator,
       );
       const before = await showAgent(db, workspace.id);
+      const prepared = preparation();
       const evaluate = vi.fn<EvaluateJev>(async () => {
-        expect(
-          (
-            await client.query(
-              "SELECT * FROM events WHERE type='DECISION_REQUESTED'",
-            )
-          ).rows,
-        ).toHaveLength(1);
+        const requested = await client.query<{
+          payload: { evidence: { reason: string } };
+        }>("SELECT payload FROM events WHERE type='DECISION_REQUESTED'");
+        expect(requested.rows).toHaveLength(1);
+        expect(requested.rows[0]?.payload.evidence.reason).toBe(
+          'Awaiting semantic evaluation',
+        );
         return response();
       });
       const decision = await evaluateIntent(
         db,
         workspace.id,
         intent.id,
+        prepared,
         operator,
         evaluate,
       );
       expect(decision.outcome).toBe('ALLOW');
       expect(evaluate).toHaveBeenCalledOnce();
-      expect(decision.evidence.context.agent.id).toBe(workspace.root_agent_id);
-      expect(decision.evidence.context.provenance.agent).toContain(
-        workspace.root_agent_id,
-      );
-      expect(decision.evidence.assessments).toHaveLength(3);
-      expect(fingerprint(decision.evidence.context)).toBe(
-        decision.evidence.stateFingerprint,
-      );
-      expect(decision.evidence.checks.every((check) => check.passed)).toBe(
-        true,
-      );
-      expect(assessResponse(decision.evidence.response).outcome).toBe(
-        decision.outcome,
-      );
+      expect(decision.evidence.context).toEqual(prepared.context);
+      expect(decision.evidence.policy).toEqual(prepared.policy);
+      expect(decision.evidence.assessments).toHaveLength(2);
+      expect(decision.evidence.checks).toEqual(prepared.checks);
+      expect(
+        assessResponse(decision.evidence.response, decision.evidence.policy!)
+          .outcome,
+      ).toBe(decision.outcome);
       expect(await showAgent(db, workspace.id)).toEqual(before);
       expect(decision).not.toHaveProperty('authorization');
       const connection = connectDatabase(url);
@@ -118,118 +108,109 @@ describe('persisted decision evaluation', () => {
     });
   });
 
-  it('denies unsupported actions, scope/target mismatches, and risk downgrades without calling Jev', async () => {
-    await setup(async ({ db, workspace }) => {
-      const other = await createWorkspace(
-        db,
-        { slug: 'second', name: 'Second' },
-        operator,
-      );
-      const evaluate = vi.fn<EvaluateJev>(() => Promise.resolve(response()));
-      for (const patch of [
-        { type: 'deploy' },
-        { intendedScope: other.id },
-        { intendedTarget: other.root_agent_id },
-        { riskClass: 'READ_ONLY' },
-        { riskClass: 'SECURITY_SENSITIVE' },
-      ]) {
-        const intent = await createActionIntent(
-          db,
-          workspace.id,
-          { ...proposal(workspace), ...patch },
-          operator,
-        );
-        const decision = await evaluateIntent(
-          db,
-          workspace.id,
-          intent.id,
-          operator,
-          evaluate,
-        );
-        expect(decision.outcome).toBe('DENY');
-        expect(decision.evidence.request).toBeNull();
-        expect(decision.evidence.checks.some((check) => !check.passed)).toBe(
-          true,
-        );
-      }
-      expect(evaluate).not.toHaveBeenCalled();
-    });
-  });
-
-  it('escalates missing Jev and malformed answers, preserving failures without SDK secrets', async () => {
+  it('does not call Jev when prerequisites fail or preparation is incomplete', async () => {
     await setup(async ({ db, workspace }) => {
       const intent = await createActionIntent(
         db,
         workspace.id,
-        proposal(workspace),
+        proposal(),
+        operator,
+      );
+      const evaluate = vi.fn<EvaluateJev>(() => Promise.resolve(response()));
+      const prepared = preparation();
+      for (const patch of [
+        { context: null },
+        { policy: null },
+        { checks: [] },
+      ]) {
+        const decision = await evaluateIntent(
+          db,
+          workspace.id,
+          intent.id,
+          { ...prepared, ...patch },
+          operator,
+          evaluate,
+        );
+        expect(decision.outcome).toBe('ESCALATE');
+        expect(decision.evidence.request).toBeNull();
+      }
+      const failed = {
+        ...prepared,
+        checks: [
+          {
+            name: 'scope',
+            passed: false,
+            evidence: 'Target outside permitted worktree',
+          },
+        ],
+      };
+      expect(
+        (
+          await evaluateIntent(
+            db,
+            workspace.id,
+            intent.id,
+            failed,
+            operator,
+            evaluate,
+          )
+        ).outcome,
+      ).toBe('DENY');
+      const wrongRisk = {
+        ...prepared,
+        policy: { ...prepared.policy!, riskClass: 'READ_ONLY' as const },
+      };
+      expect(
+        (
+          await evaluateIntent(
+            db,
+            workspace.id,
+            intent.id,
+            wrongRisk,
+            operator,
+            evaluate,
+          )
+        ).outcome,
+      ).toBe('DENY');
+      expect(evaluate).not.toHaveBeenCalled();
+    });
+  });
+
+  it('records Jev failures separately from invalid responses without storing SDK secrets', async () => {
+    await setup(async ({ db, workspace }) => {
+      const intent = await createActionIntent(
+        db,
+        workspace.id,
+        proposal(),
         operator,
       );
       for (const evaluate of [
         createJevEvaluator(undefined),
-        () => Promise.resolve({ answers: {} }),
         () => Promise.reject(new Error('secret-api-key')),
       ]) {
         const decision = await evaluateIntent(
           db,
           workspace.id,
           intent.id,
+          preparation(),
           operator,
           evaluate,
         );
         expect(decision.outcome).toBe('ESCALATE');
-        expect(decision.evidence.evaluationError).not.toBeNull();
+        expect(decision.evidence.evaluationError).toBe('JEV_UNAVAILABLE');
         expect(JSON.stringify(decision)).not.toContain('secret-api-key');
       }
       const malformed = await evaluateIntent(
         db,
         workspace.id,
         intent.id,
+        preparation(),
         operator,
         () => Promise.resolve({ answers: {} }),
       );
+      expect(malformed.outcome).toBe('ESCALATE');
+      expect(malformed.evidence.evaluationError).toBe('INVALID_RESPONSE');
       expect(malformed.evidence.response).toEqual({ answers: {} });
-    });
-  });
-
-  it('escalates a state change during Jev evaluation and denies archived workspaces', async () => {
-    await setup(async ({ db, client, workspace }) => {
-      const intent = await createActionIntent(
-        db,
-        workspace.id,
-        proposal(workspace),
-        operator,
-      );
-      const decision = await evaluateIntent(
-        db,
-        workspace.id,
-        intent.id,
-        operator,
-        async () => {
-          await configureAgent(
-            db,
-            { title: 'Changed concurrently' },
-            workspace.id,
-            operator,
-          );
-          return response();
-        },
-      );
-      expect(decision.outcome).toBe('ESCALATE');
-      expect(decision.evidence.context.agent.title).toBe('Steward');
-      expect(decision.evidence.recheckedContext?.agent.title).toBe(
-        'Changed concurrently',
-      );
-      expect(decision.evidence.checks.at(-1)?.passed).toBe(false);
-      await client.query(
-        'UPDATE workspaces SET archived_at=now() WHERE id=$1',
-        [workspace.id],
-      );
-      const evaluate = vi.fn<EvaluateJev>(() => Promise.resolve(response()));
-      expect(
-        (await evaluateIntent(db, workspace.id, intent.id, operator, evaluate))
-          .outcome,
-      ).toBe('DENY');
-      expect(evaluate).not.toHaveBeenCalled();
     });
   });
 
@@ -238,13 +219,14 @@ describe('persisted decision evaluation', () => {
       const intent = await createActionIntent(
         db,
         workspace.id,
-        proposal(workspace),
+        proposal(),
         operator,
       );
       const decision = await evaluateIntent(
         db,
         workspace.id,
         intent.id,
+        preparation(),
         operator,
         () => Promise.resolve(response()),
       );
@@ -261,7 +243,14 @@ describe('persisted decision evaluation', () => {
       ).rejects.toMatchObject({ code: 'NOT_FOUND' });
       const evaluate = vi.fn<EvaluateJev>(() => Promise.resolve(response()));
       await expect(
-        evaluateIntent(db, other.id, intent.id, operator, evaluate),
+        evaluateIntent(
+          db,
+          other.id,
+          intent.id,
+          preparation(),
+          operator,
+          evaluate,
+        ),
       ).rejects.toMatchObject({ code: 'NOT_FOUND' });
       expect(evaluate).not.toHaveBeenCalled();
       await expect(
@@ -273,16 +262,21 @@ describe('persisted decision evaluation', () => {
     });
   });
 
-  it('preserves immutable evidence and rolls back decisions when their outcome event fails', async () => {
+  it('preserves immutable evidence and rolls back decisions when the outcome event fails', async () => {
     await setup(async ({ db, client, workspace }) => {
       const intent = await createActionIntent(
         db,
         workspace.id,
-        proposal(workspace),
+        proposal(),
         operator,
       );
-      await evaluateIntent(db, workspace.id, intent.id, operator, () =>
-        Promise.resolve(response()),
+      await evaluateIntent(
+        db,
+        workspace.id,
+        intent.id,
+        preparation(),
+        operator,
+        () => Promise.resolve(response()),
       );
       for (const table of ['action_intents', 'decisions']) {
         for (const statement of [
@@ -301,6 +295,7 @@ describe('persisted decision evaluation', () => {
           db,
           workspace.id,
           intent.id,
+          preparation(),
           operator,
           createJevEvaluator(undefined),
         ),
@@ -324,89 +319,54 @@ describe('persisted decision evaluation', () => {
         "ALTER TABLE events ADD CONSTRAINT reject_intent CHECK (type <> 'ACTION_INTENT_CREATED')",
       );
       await expect(
-        createActionIntent(db, workspace.id, proposal(workspace), operator),
+        createActionIntent(db, workspace.id, proposal(), operator),
       ).rejects.toThrow(/reject_intent/);
       expect(
         (await client.query('SELECT * FROM action_intents')).rows,
       ).toHaveLength(0);
     });
   });
-});
 
-describe('decision HTTP routes', () => {
-  it('requires authentication, rejects caller-supplied authority, and exposes scoped evidence', async () => {
+  it('does not expose proposal evaluation over HTTP or intercept operator configuration', async () => {
     await setup(async ({ db, workspace }) => {
       const token = randomUUID();
-      const app = buildApp(db, token, false, () => Promise.resolve(response()));
+      const app = buildApp(db, token);
       const base = `/api/v1/workspaces/${workspace.id}`;
       const headers = { authorization: `Bearer ${token}` };
       try {
-        for (const [method, url] of [
-          ['POST', `${base}/action-intents`],
-          ['GET', `${base}/action-intents/${randomUUID()}`],
-          ['POST', `${base}/action-intents/${randomUUID()}/decisions`],
-          ['GET', `${base}/decisions/${randomUUID()}`],
-        ] as const) {
-          expect((await app.inject({ method, url })).statusCode).toBe(401);
-        }
         expect(
           (
             await app.inject({
               method: 'POST',
               url: `${base}/action-intents`,
               headers,
-              payload: { ...proposal(workspace), proposedBy: 'Gio' },
+              payload: proposal(),
             })
           ).statusCode,
-        ).toBe(400);
-        const created = await app.inject({
-          method: 'POST',
-          url: `${base}/action-intents`,
-          headers,
-          payload: proposal(workspace),
-        });
-        expect(created.statusCode).toBe(201);
-        const id = created.json<{ id: string }>().id;
-        expect(
-          (await app.inject({ url: `${base}/action-intents/${id}`, headers }))
-            .statusCode,
-        ).toBe(200);
+        ).toBe(404);
         expect(
           (
             await app.inject({
               method: 'POST',
-              url: `${base}/action-intents/${id}/decisions`,
+              url: `${base}/action-intents/${randomUUID()}/decisions`,
               headers,
-              payload: { outcome: 'ALLOW' },
-            })
-          ).statusCode,
-        ).toBe(400);
-        const result = await app.inject({
-          method: 'POST',
-          url: `${base}/action-intents/${id}/decisions`,
-          headers,
-          payload: {},
-        });
-        expect(result.statusCode).toBe(201);
-        const decision = result.json<Decision>();
-        expect(decision.outcome).toBe('ALLOW');
-        expect(
-          (
-            await app.inject({
-              url: `${base}/decisions/${decision.id}`,
-              headers,
-            })
-          ).json(),
-        ).toEqual(decision);
-        expect(
-          (
-            await app.inject({
-              url: `/api/v1/workspaces/${randomUUID()}/decisions/${decision.id}`,
-              headers,
+              payload: {},
             })
           ).statusCode,
         ).toBe(404);
-        expect((await showAgent(db, workspace.id)).title).toBe('Steward');
+        expect(
+          (
+            await app.inject({
+              method: 'PATCH',
+              url: `${base}/agent`,
+              headers,
+              payload: { title: 'Engineering Lead' },
+            })
+          ).statusCode,
+        ).toBe(200);
+        expect(await db.selectFrom('decisions').selectAll().execute()).toEqual(
+          [],
+        );
       } finally {
         await app.close();
       }

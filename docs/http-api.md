@@ -31,6 +31,3 @@ Responses include a server-generated `X-Request-Id`. Successful mutations record
 that identifier, the operator identity, and the HTTP source with the state change.
 Database internals are excluded from error responses. The server closes its
 listener and database pool on `SIGINT` or `SIGTERM`.
-
-See [Decision evaluation](decisions.md) for the workspace-scoped proposal and
-decision endpoints. These record evaluations without applying changes.

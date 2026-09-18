@@ -3,7 +3,7 @@ import { ApplicationError } from '../errors.js';
 
 const operatorActorSchema = z.strictObject({
   actor: z.literal('operator'),
-  source: z.enum(['workspace-http', 'decision-http']),
+  source: z.literal('workspace-http'),
   requestId: z.string().optional(),
 });
 

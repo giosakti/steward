@@ -2,34 +2,9 @@ import type { Generated, JSONColumnType, Selectable } from 'kysely';
 import type { JsonValue, SystemOneRequestPayload } from '@typesafe-ai/sdk';
 
 import type { OperatorActor } from '../audit/actor.js';
-import type { ActionProposal } from './schemas.js';
+import type { ActionProposal, PreparedDecision } from './schemas.js';
 
 export type Outcome = 'ALLOW' | 'DENY' | 'ESCALATE';
-
-export interface Check {
-  name: string;
-  passed: boolean;
-  evidence: string;
-}
-
-export type DecisionContext = {
-  workspace: {
-    id: string;
-    name: string;
-    description: string | null;
-    rootAgentId: string;
-    updatedAt: string;
-    archivedAt: string | null;
-  };
-  agent: {
-    id: string;
-    name: string;
-    title: string;
-    roleDescription: string | null;
-    updatedAt: string;
-  };
-  provenance: { workspace: string; agent: string };
-};
 
 export interface Assessment {
   predicate: string;
@@ -37,17 +12,21 @@ export interface Assessment {
   probabilities: Record<string, number>;
   confidence: number;
   accepted: boolean;
+  acceptedChoice: string;
+  deniedChoices: string[];
   minimumProbability: number;
 }
 
-export interface DecisionEvidence {
-  context: DecisionContext;
-  recheckedContext: DecisionContext | null;
-  stateFingerprint: string;
-  checks: Check[];
+export interface Evaluation {
+  outcome: Outcome;
+  assessments: Assessment[];
+  reason: string;
+}
+
+export interface DecisionEvidence extends PreparedDecision {
   request: SystemOneRequestPayload | null;
   response: JsonValue;
-  evaluationError: string | null;
+  evaluationError: 'JEV_UNAVAILABLE' | 'INVALID_RESPONSE' | null;
   assessments: Assessment[];
   reason: string;
 }

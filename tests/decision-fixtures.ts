@@ -1,18 +1,84 @@
-import type { ActionProposal } from '../src/decisions/schemas.js';
+import type {
+  ActionProposal,
+  DecisionPolicy,
+  PreparedDecision,
+} from '../src/decisions/schemas.js';
 
-export function proposal(workspace: {
-  id: string;
-  root_agent_id: string;
-}): ActionProposal {
+// Synthetic Work Item evidence for testing kernel mechanics. These are not
+// registered application policies, production thresholds, or persisted Work Items.
+export function proposal(): ActionProposal {
   return {
-    type: 'configure_agent',
-    objective: 'Set the root agent display title to Engineering Lead',
-    rationale: 'Make the displayed responsibility clear',
-    intendedScope: workspace.id,
-    intendedTarget: workspace.root_agent_id,
-    expectedEffect: 'The agent title becomes Engineering Lead',
+    type: 'modify_code',
+    objective: 'Add a decision report',
+    rationale: 'Make recorded blockers inspectable',
+    intendedScope:
+      'src/reports/decision-report.ts and its tests in the isolated worktree',
+    intendedTarget: 'fixture-worktree',
+    expectedEffect:
+      'A report displays recorded blockers without changing authorization',
     riskClass: 'LOCAL_REVERSIBLE',
-    parameters: { title: 'Engineering Lead' },
+  };
+}
+
+export function policy(): DecisionPolicy {
+  return {
+    version: 'test-only-v1',
+    actionType: 'modify_code',
+    riskClass: 'LOCAL_REVERSIBLE',
+    predicates: {
+      action_satisfies_work_item: {
+        question: {
+          type: 'choice',
+          instructions:
+            'Does the proposed change satisfy the supplied Work Item?',
+          criteria: {
+            MATCHES: 'Meets the Work Item',
+            CONTRADICTS: 'Contradicts the Work Item',
+            UNCLEAR: 'Evidence is insufficient',
+          },
+        },
+        acceptedChoice: 'MATCHES',
+        deniedChoices: ['CONTRADICTS'],
+        minimumProbability: 0.9,
+      },
+      scope_is_minimal: {
+        question: {
+          type: 'choice',
+          instructions: 'Is every proposed change necessary for the Work Item?',
+          criteria: {
+            BOUNDED: 'Every change is necessary',
+            EXCESSIVE: 'Includes unrelated changes',
+            UNCLEAR: 'Evidence is insufficient',
+          },
+        },
+        acceptedChoice: 'BOUNDED',
+        deniedChoices: ['EXCESSIVE'],
+        minimumProbability: 0.9,
+      },
+    },
+  };
+}
+
+export function preparation(): PreparedDecision {
+  return {
+    policy: policy(),
+    context: {
+      facts: {
+        workItem: {
+          id: 'fixture-work-item',
+          objective: 'Add a read-only decision report',
+        },
+        target: 'fixture-worktree',
+      },
+      sources: ['test-fixture:work-item', 'test-fixture:worktree'],
+    },
+    checks: [
+      {
+        name: 'isolated_target',
+        passed: true,
+        evidence: 'Synthetic isolated worktree fixture',
+      },
+    ],
   };
 }
 
@@ -21,7 +87,7 @@ export function response() {
     model: 'jev-test',
     usage: { input_tokens: 100, output_tokens: 20 },
     answers: {
-      effect_matches_objective: {
+      action_satisfies_work_item: {
         type: 'choice',
         choice: 'MATCHES',
         confidence: 0.98,
@@ -32,12 +98,6 @@ export function response() {
         choice: 'BOUNDED',
         confidence: 0.98,
         probabilities: { BOUNDED: 0.98, EXCESSIVE: 0.01, UNCLEAR: 0.01 },
-      },
-      authority_is_preserved: {
-        type: 'choice',
-        choice: 'PRESERVED',
-        confidence: 0.98,
-        probabilities: { PRESERVED: 0.98, EXPANDED: 0.01, UNCLEAR: 0.01 },
       },
     },
   };

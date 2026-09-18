@@ -14,15 +14,7 @@ import type { Database } from '../storage/database.js';
 import { ApplicationError } from '../errors.js';
 import { workspaceRoutes } from '../workspaces/routes.js';
 
-import { decisionRoutes } from '../decisions/routes.js';
-import { createJevEvaluator, type EvaluateJev } from '../decisions/jev.js';
-
-export function buildApp(
-  db: Kysely<Database>,
-  token: string,
-  logging = false,
-  evaluateJev: EvaluateJev = createJevEvaluator(undefined),
-) {
+export function buildApp(db: Kysely<Database>, token: string, logging = false) {
   // Refuse missing or malformed credentials before accepting connections.
   if (!/^[A-Za-z0-9_-]{32,}$/.test(token)) {
     throw new Error(
@@ -95,6 +87,5 @@ export function buildApp(
     reply.code(404).send({ code: 'NOT_FOUND', error: 'Route not found' }),
   );
   app.register(workspaceRoutes, { db });
-  app.register(decisionRoutes, { db, evaluateJev });
   return app;
 }
