@@ -45,7 +45,7 @@ npm run steward -- --help
 The CLI loads `.env` from the current directory automatically. Existing
 environment variables take precedence, and `.env` is gitignored.
 
-## Development
+## Running Tests
 
 Create a separate database named `steward_test`, owned by your test role, and
 set `TEST_DATABASE_URL` in `.env` to its connection URL. Then run:
@@ -58,6 +58,8 @@ npm test
 
 Tests also load `.env`, build the project, and use temporary schemas in `steward_test`, removing
 them afterward. They do not use the application database.
+
+## Database Migration
 
 SQL migrations live in [`src/storage/migrations`](src/storage/migrations).
 Append new timestamp-prefixed files rather than editing applied migrations.
