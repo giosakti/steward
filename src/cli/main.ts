@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {loadEnvFile} from 'node:process';
 import {Command} from 'commander';
 import {migrate} from '../storage/migrate.js';
 
@@ -17,6 +18,9 @@ program.command('init')
   });
 
 try {
+  try { loadEnvFile(); } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+  }
   if (process.argv.length === 2) program.outputHelp();
   else await program.parseAsync();
 } catch (error) {

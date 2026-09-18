@@ -76,10 +76,19 @@ await test('failed SQL rolls back schema and history, then a corrected migration
   } finally { await rm(path, {recursive: true, force: true}); }
 });
 
-await test('CLI help needs no database and invalid commands fail', async () => {
+await test('CLI loads .env, preserves environment precedence, and works without a file', async () => {
   const cli = new URL('../src/cli/main.js', import.meta.url).pathname;
+  const cwd = await mkdtemp(join(tmpdir(), 'steward-cli-env-'));
   const env = {...process.env}; delete env.DATABASE_URL;
-  assert.match((await exec(process.execPath, [cli, '--help'], {env})).stdout, /init/);
-  await assert.rejects(exec(process.execPath, [cli, 'init'], {env}), /DATABASE_URL is required/);
-  await assert.rejects(exec(process.execPath, [cli, 'unknown'], {env}), /unknown command/);
+  try {
+    assert.match((await exec(process.execPath, [cli, '--help'], {env, cwd})).stdout, /init/);
+    await assert.rejects(exec(process.execPath, [cli, 'init'], {env, cwd}), /DATABASE_URL is required/);
+    await assert.rejects(exec(process.execPath, [cli, 'unknown'], {env, cwd}), /unknown command/);
+    await isolated(async (url, _client, schema) => {
+      await writeFile(join(cwd, '.env'), `DATABASE_URL=${url}\n`);
+      assert.match((await exec(process.execPath, [cli, 'init', '--schema', schema], {env, cwd})).stdout, /Applied:/);
+      await writeFile(join(cwd, '.env'), 'DATABASE_URL=postgresql://invalid:invalid@127.0.0.1:1/invalid\n');
+      assert.match((await exec(process.execPath, [cli, 'init', '--schema', schema], {env: {...env, DATABASE_URL: url}, cwd})).stdout, /up to date/);
+    });
+  } finally { await rm(cwd, {recursive: true, force: true}); }
 });

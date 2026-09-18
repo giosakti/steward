@@ -17,20 +17,24 @@ Requirements:
 
 - Node.js 24 LTS
 - PostgreSQL 18
-- A database named `steward` and a role with permission to create tables in it
+- A PostgreSQL database and a role with permission to create tables in it
 
 ```sh
 git clone https://github.com/giosakti/steward.git
 cd steward
 npm ci
-npm run build
+cp .env.example .env
+```
 
-export DATABASE_URL='postgresql://USER:PASSWORD@localhost:5432/steward'
+Edit `.env` with your PostgreSQL credentials and database names, then initialize:
+
+```sh
+npm run build
 npm run db:migrate
 ```
 
-Replace `USER` and `PASSWORD` with your local PostgreSQL credentials. Repeating
-`db:migrate` applies only pending migrations.
+The application database is selected by `DATABASE_URL`; `steward` is only the
+example name. Repeating `db:migrate` applies only pending migrations.
 
 For available commands:
 
@@ -38,21 +42,21 @@ For available commands:
 npm run steward -- --help
 ```
 
-Configuration is supplied through environment variables; `.env` files are not
-loaded automatically. See [`.env.example`](.env.example) for local examples.
+The CLI loads `.env` from the current directory automatically. Existing
+environment variables take precedence, and `.env` is gitignored.
 
 ## Development
 
-Create a separate database named `steward_test`, owned by your test role, then run:
+Create a separate database named `steward_test`, owned by your test role, and
+set `TEST_DATABASE_URL` in `.env` to its connection URL. Then run:
 
 ```sh
-export TEST_DATABASE_URL='postgresql://USER:PASSWORD@localhost:5432/steward_test'
 npm run lint
 npm run typecheck
 npm test
 ```
 
-Tests build the project and use temporary schemas in `steward_test`, removing
+Tests also load `.env`, build the project, and use temporary schemas in `steward_test`, removing
 them afterward. They do not use the application database.
 
 SQL migrations live in [`src/storage/migrations`](src/storage/migrations).

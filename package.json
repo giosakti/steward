@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc && node scripts/copy-migrations.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test dist/tests/*.test.js",
+    "test": "npm run build && node --env-file-if-exists=.env --test dist/tests/*.test.js",
     "steward": "node dist/src/cli/main.js",
     "db:migrate": "npm run steward -- init",
     "lint": "eslint . --max-warnings 0"
