@@ -1,3 +1,4 @@
+import axios, { type AxiosResponse } from 'axios';
 import { z } from 'zod';
 import { selectedWorkspace } from './config.js';
 
@@ -25,42 +26,49 @@ export function createClient() {
     throw new Error('STEWARD_API_TOKEN is required');
   }
 
+  const http = axios.create({
+    baseURL: apiUrl.origin,
+    headers: { authorization: `Bearer ${token}` },
+    timeout: 10000,
+    maxRedirects: 0,
+    // This local CLI connects directly, without environment-configured proxies.
+    proxy: false,
+    responseType: 'json',
+    transitional: { silentJSONParsing: false },
+    validateStatus: () => true,
+  });
+
   async function request(
     path: string,
     method = 'GET',
     body?: unknown,
   ): Promise<unknown> {
-    let response: Response;
+    let response: AxiosResponse<unknown>;
     try {
-      response = await fetch(new URL(path, apiUrl), {
+      response = await http.request<unknown>({
+        url: path,
         method,
-        headers: {
-          authorization: `Bearer ${token}`,
-          ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
-        },
-        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-        redirect: 'error',
+        data: body,
+        // Bound the entire request as well as Axios's socket timeout.
         signal: AbortSignal.timeout(10000),
       });
-    } catch {
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.code === 'ERR_BAD_RESPONSE') {
+        throw new Error('Invalid API response', { cause: error });
+      }
       throw new Error(
         `Cannot reach Steward API at ${apiUrl.origin}; check the server and STEWARD_API_URL`,
+        { cause: error },
       );
     }
-    let result: unknown;
-    try {
-      result = await response.json();
-    } catch {
-      throw new Error(`Invalid API response (HTTP ${response.status})`);
-    }
-    if (!response.ok) {
-      const error = errorSchema.safeParse(result);
+    if (response.status < 200 || response.status >= 300) {
+      const error = errorSchema.safeParse(response.data);
       const message = error.success
         ? `${error.data.code}: ${error.data.error}`
         : 'Request failed';
       throw new Error(`HTTP ${response.status}: ${message}`);
     }
-    return result;
+    return response.data;
   }
 
   async function workspace(slug?: string) {
