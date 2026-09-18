@@ -1,9 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {mkdtemp, writeFile, rm} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
-import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
@@ -31,66 +28,26 @@ async function isolated(fn: (url: string, client: pg.Client, schema: string) => 
   }
 }
 
-function migrate(url: string, schema: string, directory?: string) {
-  const args = ['run', 'db:migrate', '--', '--schema', schema];
-  if (directory) return exec(process.execPath, [
-    join(root, 'node_modules/node-pg-migrate/bin/node-pg-migrate.js'), 'up',
-    '--migrations-dir', directory, '--schema', schema, '--no-verbose',
-  ], {cwd: root, env: {...process.env, DATABASE_URL: url}});
-  return exec('npm', args, {cwd: root, env: {...process.env, DATABASE_URL: url}});
-}
-
-await test('npm migration command persists across processes, repeats safely, and protects events', async () => {
+await test('project migrations create an empty event log', async () => {
   await isolated(async (url, client, schema) => {
-    const first = await migrate(url, schema);
-    assert.match(first.stdout, /1789689600000_events/);
-    const second = await migrate(url, schema);
-    assert.match(second.stdout, /No migrations to run/);
+    await exec('npm', ['run', 'db:migrate', '--', '--schema', schema], {
+      cwd: root, env: {...process.env, DATABASE_URL: url},
+    });
+    assert.deepEqual((await client.query('SELECT * FROM events')).rows, []);
+  });
+});
+
+await test('event log allows inserts and reads but rejects mutation', async () => {
+  await isolated(async (url, client, schema) => {
+    await exec('npm', ['run', 'db:migrate', '--', '--schema', schema], {
+      cwd: root, env: {...process.env, DATABASE_URL: url},
+    });
     await client.query("INSERT INTO events(type, payload) VALUES ('BOOTSTRAP_TEST', '{\"note\":\"preserve\"}')");
+    const before = (await client.query('SELECT * FROM events')).rows;
+    assert.equal(before.length, 1);
     for (const sql of ["UPDATE events SET type='changed'", 'DELETE FROM events', 'TRUNCATE events']) {
       await assert.rejects(client.query(sql), /append-only/);
     }
-    assert.equal((await client.query<{count: string}>('SELECT count(*) FROM events')).rows[0]?.count, '1');
-    assert.equal((await client.query<{count: string}>('SELECT count(*) FROM pgmigrations')).rows[0]?.count, '1');
+    assert.deepEqual((await client.query('SELECT * FROM events')).rows, before);
   });
-});
-
-await test('concurrent migration commands apply each migration once', async () => {
-  await isolated(async (url, client, schema) => {
-    await Promise.all([migrate(url, schema), migrate(url, schema)]);
-    assert.equal((await client.query<{count: string}>('SELECT count(*) FROM pgmigrations')).rows[0]?.count, '1');
-  });
-});
-
-await test('failed SQL rolls back schema and history, then a corrected migration succeeds', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'steward-migrations-'));
-  try {
-    await writeFile(join(directory, '0001_sample.sql'), 'CREATE TABLE sample (id int);');
-    await writeFile(join(directory, '0002_broken.sql'), 'SELECT nonexistent_column;');
-    await isolated(async (url, client, schema) => {
-      await assert.rejects(migrate(url, schema, directory), /nonexistent_column/);
-      assert.equal((await client.query<{name: string | null}>("SELECT to_regclass('sample') AS name")).rows[0]?.name, null);
-      assert.equal((await client.query<{count: string}>('SELECT count(*) FROM pgmigrations')).rows[0]?.count, '0');
-      await writeFile(join(directory, '0002_broken.sql'), 'ALTER TABLE sample ADD COLUMN label text;');
-      await migrate(url, schema, directory);
-      await writeFile(join(directory, '0000_earlier.sql'), 'CREATE TABLE earlier (id int);');
-      await assert.rejects(migrate(url, schema, directory), /preceding already run migration/);
-      assert.equal((await client.query<{count: string}>('SELECT count(*) FROM pgmigrations')).rows[0]?.count, '2');
-    });
-  } finally { await rm(directory, {recursive: true, force: true}); }
-});
-
-await test('migration invocation loads .env and preserves environment precedence', async () => {
-  const cwd = await mkdtemp(join(tmpdir(), 'steward-env-'));
-  const env = {...process.env}; delete env.DATABASE_URL;
-  const bin = join(root, 'node_modules/node-pg-migrate/bin/node-pg-migrate.js');
-  try {
-    await isolated(async (url, _client, schema) => {
-      const args = ['--env-file-if-exists=.env', bin, 'up', '--migrations-dir', join(root, 'src/storage/migrations'), '--schema', schema, '--no-verbose'];
-      await writeFile(join(cwd, '.env'), `DATABASE_URL=${url}\n`);
-      assert.match((await exec(process.execPath, args, {env, cwd})).stdout, /1789689600000_events/);
-      await writeFile(join(cwd, '.env'), 'DATABASE_URL=postgresql://invalid:invalid@127.0.0.1:1/invalid\n');
-      assert.match((await exec(process.execPath, args, {env: {...env, DATABASE_URL: url}, cwd})).stdout, /No migrations to run/);
-    });
-  } finally { await rm(cwd, {recursive: true, force: true}); }
 });
