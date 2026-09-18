@@ -11,14 +11,21 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test dist/tests/*.test.js",
     "steward": "node dist/src/cli/main.js",
-    "db:migrate": "npm run steward -- init"
+    "db:migrate": "npm run steward -- init",
+    "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
+    "commander": "15.0.0",
+    "node-pg-migrate": "9.0.0",
     "pg": "8.23.0"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@types/node": "24.13.5",
     "@types/pg": "8.23.1",
-    "typescript": "7.0.2"
+    "eslint": "10.10.0",
+    "globals": "17.12.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.0"
   }
 }
