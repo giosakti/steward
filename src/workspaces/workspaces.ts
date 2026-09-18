@@ -1,70 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
-import {
-  sql,
-  type Generated,
-  type Kysely,
-  type Selectable,
-  type Transaction,
-} from 'kysely';
-import { z } from 'zod';
+import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '../storage/database.js';
-
-export interface WorkspaceTable {
-  id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  root_path: string | null;
-  root_agent_id: string;
-  created_at: Generated<Date>;
-  updated_at: Generated<Date>;
-  archived_at: Generated<Date | null>;
-}
-
-export interface AgentTable {
-  id: string;
-  workspace_id: string;
-  name: string;
-  title: string;
-  role_description: Generated<string | null>;
-  created_at: Generated<Date>;
-  updated_at: Generated<Date>;
-}
-
-export type Workspace = Selectable<WorkspaceTable>;
-export type Agent = Selectable<AgentTable>;
-
-const nonblank = (label: string) =>
-  z
-    .string()
-    .refine((value) => value.trim().length > 0, `${label} must not be blank`);
-
-const createWorkspaceSchema = z.strictObject({
-  slug: z
-    .string()
-    .regex(
-      /^[a-z0-9]+(-[a-z0-9]+)*$/,
-      'Use a lowercase slug with letters, numbers, and single hyphens',
-    ),
-  name: nonblank('Workspace name'),
-  description: z.string().optional(),
-  rootPath: nonblank('Root path').optional(),
-});
-
-const configureAgentSchema = z
-  .strictObject({
-    name: nonblank('Agent name').optional(),
-    title: nonblank('Agent title').optional(),
-    roleDescription: z.string().optional(),
-  })
-  .refine(
-    (input) => Object.values(input).some((value) => value !== undefined),
-    'Provide --name, --title, or --role-description',
-  );
-
-export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
-export type ConfigureAgentInput = z.infer<typeof configureAgentSchema>;
+import type { Workspace, Agent } from './types.js';
+import {
+  createWorkspaceSchema,
+  configureAgentSchema,
+  type CreateWorkspaceInput,
+  type ConfigureAgentInput,
+} from './schemas.js';
 
 async function record(
   db: Transaction<Database>,

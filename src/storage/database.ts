@@ -5,7 +5,7 @@ import {
   type GeneratedAlways,
 } from 'kysely';
 import pg from 'pg';
-import type { AgentTable, WorkspaceTable } from '../workspaces/workspaces.js';
+import type { AgentTable, WorkspaceTable } from '../workspaces/types.js';
 
 // These types mirror the SQL migrations; PostgreSQL remains the schema authority.
 export interface Database {

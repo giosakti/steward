@@ -96,3 +96,19 @@ node-pg-migrate. No build step is required.
 SQL migrations live in [`src/storage/migrations`](src/storage/migrations).
 Append new timestamp-prefixed files rather than editing applied migrations.
 Migrations run in a transaction; omit transaction-control statements from SQL.
+
+## Contributing
+
+Keep changes focused and reviewable:
+
+- Group code by domain, separating input schemas, table types, and operations
+  when that makes them easier to navigate.
+- Keep CLI handlers focused on parsing arguments, calling operations, and
+  displaying results.
+- Give tests a specific behavior to verify and a descriptive name. Reuse the
+  database isolation helper for PostgreSQL tests.
+- Commit state changes and their audit events in the same transaction.
+
+GitHub Actions runs formatting, lint, typecheck, clean-database migrations, and
+build/tests for pull requests and pushes to `main`, using Node 24 and a disposable
+PostgreSQL 18 service.
