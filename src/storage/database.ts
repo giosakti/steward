@@ -7,8 +7,12 @@ import {
 import pg from 'pg';
 import type { AgentTable, WorkspaceTable } from '../workspaces/types.js';
 
+import type { ActionIntentTable, DecisionTable } from '../decisions/types.js';
+
 // These types mirror the SQL migrations; PostgreSQL remains the schema authority.
 export interface Database {
+  action_intents: ActionIntentTable;
+  decisions: DecisionTable;
   workspaces: WorkspaceTable;
   agents: AgentTable;
   events: {
