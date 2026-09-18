@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+docs/specs/
+.env*
+.agents/
+.codex/
+.steward/

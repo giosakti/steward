@@ -74,6 +74,7 @@ Create a separate database named `steward_test`, owned by your test role, and
 set `TEST_DATABASE_URL` in `.env` to its connection URL. Then run:
 
 ```sh
+npm run format:check
 npm run lint
 npm run typecheck
 npm test
@@ -81,6 +82,10 @@ npm test
 
 Tests also load `.env`, build the project, and use temporary schemas in `steward_test`, removing
 them afterward. They do not use the application database.
+
+Use `npm run format` to format code with Prettier. ESLint also enforces braces,
+separate variable declarations, and no nested ternaries. Prefer named intermediate
+values and blank lines between logical steps when they make code easier to read.
 
 ## Database Migration
 
