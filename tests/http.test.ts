@@ -11,12 +11,12 @@ import {
   configureAgent,
   createWorkspace,
 } from '../src/workspaces/workspaces.js';
-import type { OperatorContext } from '../src/access/operator.js';
+import type { OperatorActor } from '../src/audit/actor.js';
 import { isolated } from './database.js';
 
 const token = randomUUID();
 const headers = { authorization: `Bearer ${token}` };
-const operator: OperatorContext = {
+const operator: OperatorActor = {
   actor: 'operator',
   source: 'workspace-http',
 };
@@ -96,7 +96,7 @@ describe('operator authentication', () => {
         { slug: 'existing', name: 'Existing' },
         operator,
       );
-      const agent: OperatorContext = {
+      const agent: OperatorActor = {
         ...operator,
         // @ts-expect-error Agent callers are not authorized on the operator path.
         actor: 'agent',

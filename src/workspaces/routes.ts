@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from '@fastify/type-provider-zod';
 import type { Kysely } from 'kysely';
 import { z } from 'zod';
 import type { Database } from '../storage/database.js';
-import type { OperatorContext } from '../access/operator.js';
+import type { OperatorActor } from '../audit/actor.js';
 import { createWorkspaceSchema, configureAgentSchema } from './schemas.js';
 import {
   createWorkspace,
@@ -22,7 +22,7 @@ export function workspaceRoutes(
   done: () => void,
 ) {
   const app = server.withTypeProvider<ZodTypeProvider>();
-  const operator = (requestId: string): OperatorContext => ({
+  const operator = (requestId: string): OperatorActor => ({
     actor: 'operator',
     source: 'workspace-http',
     requestId,

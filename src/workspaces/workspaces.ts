@@ -1,4 +1,4 @@
-import { requireOperator, type OperatorContext } from '../access/operator.js';
+import { validateOperatorActor, type OperatorActor } from '../audit/actor.js';
 import { ApplicationError } from '../errors.js';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
@@ -17,7 +17,7 @@ async function record(
   workspace: string,
   type: string,
   data: unknown,
-  operator: OperatorContext,
+  operator: OperatorActor,
 ) {
   await db
     .insertInto('events')
@@ -33,9 +33,9 @@ async function record(
 export async function createWorkspace(
   db: Kysely<Database>,
   input: CreateWorkspaceInput,
-  context: OperatorContext,
+  context: OperatorActor,
 ): Promise<Workspace> {
-  const operator = requireOperator(context);
+  const operator = validateOperatorActor(context);
   const parsed = createWorkspaceSchema.parse(input);
   let root: string | null = null;
   if (parsed.rootPath !== undefined) {
@@ -141,9 +141,9 @@ export async function configureAgent(
   db: Kysely<Database>,
   input: ConfigureAgentInput,
   workspaceId: string,
-  context: OperatorContext,
+  context: OperatorActor,
 ): Promise<Agent> {
-  const operator = requireOperator(context);
+  const operator = validateOperatorActor(context);
   const parsed = configureAgentSchema.parse(input);
 
   return db.transaction().execute(async (trx) => {

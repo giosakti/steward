@@ -1,4 +1,4 @@
-import type { OperatorContext } from '../src/access/operator.js';
+import type { OperatorActor } from '../src/audit/actor.js';
 import { describe, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -16,7 +16,7 @@ import {
 } from '../src/workspaces/workspaces.js';
 import type { CreateWorkspaceInput } from '../src/workspaces/schemas.js';
 
-const operator: OperatorContext = {
+const operator: OperatorActor = {
   actor: 'operator',
   source: 'workspace-http',
 };
