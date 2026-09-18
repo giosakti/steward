@@ -42,11 +42,6 @@ npm run steward -- workspace use personal
 npm run steward -- agent show
 ```
 
-## Documentation
-
-- [Workspaces and CLI](docs/workspaces.md)
-- [HTTP API](docs/http-api.md)
-
 ## Running Tests
 
 Create a separate database named `steward_test`, owned by your test role, and
@@ -97,3 +92,8 @@ Keep changes focused and reviewable:
 GitHub Actions runs formatting, lint, typecheck, clean-database migrations, and
 build/tests for pull requests and pushes to `main`, using Node 24 and a disposable
 PostgreSQL 18 service.
+
+## Documentation
+
+- [Workspaces and CLI](docs/workspaces.md)
+- [HTTP API](docs/http-api.md)
