@@ -10,9 +10,11 @@ import {
   useWorkspace,
   showAgent,
   configureAgent,
-  type CreateWorkspaceInput,
-  type ConfigureAgentInput,
 } from '../workspaces/workspaces.js';
+import type {
+  CreateWorkspaceInput,
+  ConfigureAgentInput,
+} from '../workspaces/schemas.js';
 
 const program = new Command()
   .name('steward')
