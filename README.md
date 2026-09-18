@@ -7,9 +7,9 @@ Steward is designed to separate reasoning from authority: language models propos
 actions, a decision kernel evaluates them, and constrained executors carry them
 out. Human review and recorded evidence are central to that design.
 
-**Status: early development.** The current foundation provides
-PostgreSQL migrations and an append-only event log. Agent execution and learning
-are not implemented yet.
+**Status: early development.** You can create workspaces, select a workspace,
+and configure its persistent root agent. Agent execution and learning are not
+implemented yet.
 
 ## Getting started
 
@@ -35,8 +35,38 @@ npm run db:migrate
 The application database is selected by `DATABASE_URL`; `steward` is only the
 example name. Repeating `db:migrate` applies only pending migrations.
 
-Migration and test commands load `.env` automatically. Existing environment
+The npm commands load `.env` automatically. Existing environment
 variables take precedence, and `.env` is gitignored.
+
+## Workspaces
+
+Build the CLI, then create and select a workspace:
+
+```sh
+npm run build
+npm run steward -- workspace create personal "Personal project" --root-path .
+npm run steward -- workspace use personal
+npm run steward -- workspace show
+npm run steward -- agent show
+npm run steward -- agent configure --title "Engineering Lead"
+```
+
+Each workspace has one root agent, named and titled `Steward` by default.
+`--root-path` is optional and records an existing directory; these commands do
+not modify its files. Agent configuration also accepts `--name` and
+`--role-description`.
+
+The selected workspace persists across commands in the same database. Use
+`--workspace <slug>` to target another workspace without changing that selection:
+
+```sh
+npm run steward -- --workspace personal agent show
+npm run steward -- workspace list
+npm run steward -- --help
+```
+
+These are local operator commands. Creating a workspace does not start an agent
+or grant it execution authority.
 
 ## Running Tests
 
