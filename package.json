@@ -15,7 +15,7 @@
     "steward": "node --env-file-if-exists=.env dist/src/cli/main.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "start": "node --env-file-if-exists=.env dist/src/http/server.js"
+    "serve": "node --env-file-if-exists=.env dist/src/http/server.js"
   },
   "dependencies": {
     "@fastify/bearer-auth": "10.1.3",
