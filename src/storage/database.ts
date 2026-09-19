@@ -5,9 +5,17 @@ import {
   type GeneratedAlways,
 } from 'kysely';
 import pg from 'pg';
-import type { AgentTable, WorkspaceTable } from '../workspaces/types.js';
 
 import type { ActionIntentTable, DecisionTable } from '../decisions/types.js';
+import type { AgentTable, WorkspaceTable } from '../workspaces/types.js';
+
+export function connectDatabase(connectionString: string): Kysely<Database> {
+  return new Kysely<Database>({
+    dialect: new PostgresDialect({
+      pool: new pg.Pool({ connectionString, connectionTimeoutMillis: 5000 }),
+    }),
+  });
+}
 
 // These types mirror the SQL migrations; PostgreSQL remains the schema authority.
 export interface Database {
@@ -22,12 +30,4 @@ export interface Database {
     created_at: Generated<Date>;
     payload: Record<string, unknown>;
   };
-}
-
-export function connectDatabase(connectionString: string): Kysely<Database> {
-  return new Kysely<Database>({
-    dialect: new PostgresDialect({
-      pool: new pg.Pool({ connectionString, connectionTimeoutMillis: 5000 }),
-    }),
-  });
 }

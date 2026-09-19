@@ -23,36 +23,6 @@ import type { Workspace } from '../src/workspaces/types.js';
 import { isolated } from './database.js';
 import { preparation, proposal, response } from './decision-fixtures.js';
 
-interface Context {
-  db: Kysely<Database>;
-  client: pg.Client;
-  workspace: Workspace;
-  url: string;
-}
-const exec = promisify(execFile);
-const root = fileURLToPath(new URL('../', import.meta.url));
-const operator: OperatorActor = { actor: 'operator', source: 'workspace-http' };
-
-async function setup(run: (context: Context) => Promise<void>) {
-  await isolated(async (url, client, schema) => {
-    await exec('npm', ['run', 'db:migrate', '--', '--schema', schema], {
-      cwd: root,
-      env: { ...process.env, DATABASE_URL: url },
-    });
-    const db = connectDatabase(url);
-    try {
-      const workspace = await createWorkspace(
-        db,
-        { slug: 'first', name: 'First' },
-        operator,
-      );
-      await run({ db, client, workspace, url });
-    } finally {
-      await db.destroy();
-    }
-  });
-}
-
 describe('decision evidence foundation', () => {
   it('preserves the supplied context, policy and judgments without executing anything', async () => {
     await setup(async ({ db, client, workspace, url }) => {
@@ -377,3 +347,33 @@ describe('decision evidence foundation', () => {
     });
   });
 });
+
+interface Context {
+  db: Kysely<Database>;
+  client: pg.Client;
+  workspace: Workspace;
+  url: string;
+}
+const exec = promisify(execFile);
+const root = fileURLToPath(new URL('../', import.meta.url));
+const operator: OperatorActor = { actor: 'operator', source: 'workspace-http' };
+
+async function setup(run: (context: Context) => Promise<void>) {
+  await isolated(async (url, client, schema) => {
+    await exec('npm', ['run', 'db:migrate', '--', '--schema', schema], {
+      cwd: root,
+      env: { ...process.env, DATABASE_URL: url },
+    });
+    const db = connectDatabase(url);
+    try {
+      const workspace = await createWorkspace(
+        db,
+        { slug: 'first', name: 'First' },
+        operator,
+      );
+      await run({ db, client, workspace, url });
+    } finally {
+      await db.destroy();
+    }
+  });
+}

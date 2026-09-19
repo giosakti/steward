@@ -20,6 +20,29 @@ export function proposal(): ActionProposal {
   };
 }
 
+export function preparation(): PreparedDecision {
+  return {
+    policy: policy(),
+    context: {
+      facts: {
+        workItem: {
+          id: 'fixture-work-item',
+          objective: 'Add a read-only decision report',
+        },
+        target: 'fixture-worktree',
+      },
+      sources: ['test-fixture:work-item', 'test-fixture:worktree'],
+    },
+    checks: [
+      {
+        name: 'isolated_target',
+        passed: true,
+        evidence: 'Synthetic isolated worktree fixture',
+      },
+    ],
+  };
+}
+
 export function policy(): DecisionPolicy {
   return {
     version: 'test-only-v1',
@@ -56,29 +79,6 @@ export function policy(): DecisionPolicy {
         minimumProbability: 0.9,
       },
     },
-  };
-}
-
-export function preparation(): PreparedDecision {
-  return {
-    policy: policy(),
-    context: {
-      facts: {
-        workItem: {
-          id: 'fixture-work-item',
-          objective: 'Add a read-only decision report',
-        },
-        target: 'fixture-worktree',
-      },
-      sources: ['test-fixture:work-item', 'test-fixture:worktree'],
-    },
-    checks: [
-      {
-        name: 'isolated_target',
-        passed: true,
-        evidence: 'Synthetic isolated worktree fixture',
-      },
-    ],
   };
 }
 

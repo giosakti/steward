@@ -4,18 +4,10 @@ import type { JsonValue, SystemOneRequestPayload } from '@typesafe-ai/sdk';
 import type { OperatorActor } from '../audit/actor.js';
 import type { ActionProposal, PreparedDecision } from './schemas.js';
 
-export type Verdict = 'ALLOW' | 'DENY' | 'ESCALATE';
+export type ActionIntent = Selectable<ActionIntentTable>;
+export type Decision = Selectable<DecisionTable>;
 
-export interface SemanticAssessment {
-  predicate: string;
-  choice: string;
-  probabilities: Record<string, number>;
-  confidence: number;
-  accepted: boolean;
-  acceptedChoice: string;
-  deniedChoices: string[];
-  minimumProbability: number;
-}
+export type Verdict = 'ALLOW' | 'DENY' | 'ESCALATE';
 
 export interface DecisionEvaluation {
   verdict: Verdict;
@@ -29,6 +21,17 @@ export interface DecisionEvidence extends PreparedDecision {
   evaluationError: 'JEV_UNAVAILABLE' | 'INVALID_RESPONSE' | null;
   assessments: SemanticAssessment[];
   reason: string;
+}
+
+export interface SemanticAssessment {
+  predicate: string;
+  choice: string;
+  probabilities: Record<string, number>;
+  confidence: number;
+  accepted: boolean;
+  acceptedChoice: string;
+  deniedChoices: string[];
+  minimumProbability: number;
 }
 
 export interface ActionIntentTable {
@@ -48,6 +51,3 @@ export interface DecisionTable {
   evidence: JSONColumnType<DecisionEvidence>;
   created_at: Generated<Date>;
 }
-
-export type ActionIntent = Selectable<ActionIntentTable>;
-export type Decision = Selectable<DecisionTable>;

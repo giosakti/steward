@@ -48,26 +48,6 @@ export async function createActionIntent(
   });
 }
 
-export async function showActionIntent(
-  db: Kysely<Database>,
-  workspaceId: string,
-  id: string,
-): Promise<ActionIntent> {
-  const intent = await db
-    .selectFrom('action_intents')
-    .selectAll()
-    .where('workspace_id', '=', workspaceId)
-    .where('id', '=', id)
-    .executeTakeFirst();
-  if (!intent) {
-    throw new ApplicationError(
-      'NOT_FOUND',
-      'Action intent not found in workspace',
-    );
-  }
-  return intent;
-}
-
 // Internal entry point for future Work Item/Run orchestration. The preparation
 // must come from trusted resolvers and policy code, not a proposal's author.
 // This records an evaluation; no executor may treat it as an execution grant.
@@ -162,6 +142,26 @@ export async function evaluateIntent(
     });
     return decision;
   });
+}
+
+export async function showActionIntent(
+  db: Kysely<Database>,
+  workspaceId: string,
+  id: string,
+): Promise<ActionIntent> {
+  const intent = await db
+    .selectFrom('action_intents')
+    .selectAll()
+    .where('workspace_id', '=', workspaceId)
+    .where('id', '=', id)
+    .executeTakeFirst();
+  if (!intent) {
+    throw new ApplicationError(
+      'NOT_FOUND',
+      'Action intent not found in workspace',
+    );
+  }
+  return intent;
 }
 
 export async function showDecision(
