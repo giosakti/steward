@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+const text = z.string().trim().min(1);
+const probability = z.number().min(0).max(1);
+
 export const riskLabelSchema = z.enum([
   'READ_ONLY',
   'LOCAL_REVERSIBLE',
@@ -35,9 +38,6 @@ export const riskLabelsSchema = z
     'IRREVERSIBLE cannot be combined with reversible labels',
   );
 
-const text = z.string().trim().min(1);
-const probability = z.number().min(0).max(1);
-
 // Claims in a proposal are inputs to evaluation, never authoritative facts.
 export const actionProposalSchema = z.strictObject({
   type: text.max(100),
@@ -49,17 +49,19 @@ export const actionProposalSchema = z.strictObject({
   riskLabels: riskLabelsSchema,
 });
 
-export const deterministicCheckSchema = z.strictObject({
-  name: text,
-  passed: z.boolean(),
-  evidence: text,
-});
+export type ActionProposal = z.infer<typeof actionProposalSchema>;
 
 export const decisionContextSchema = z.strictObject({
   facts: z
     .record(z.string(), z.json())
     .refine((facts) => Object.keys(facts).length > 0, 'Context requires facts'),
   sources: z.array(text).min(1),
+});
+
+export const deterministicCheckSchema = z.strictObject({
+  name: text,
+  passed: z.boolean(),
+  evidence: text,
 });
 
 const semanticPredicateSchema = z
@@ -102,12 +104,12 @@ export const decisionPolicySchema = z.strictObject({
     ),
 });
 
+export type DecisionPolicy = z.infer<typeof decisionPolicySchema>;
+
 export const decisionPreparationSchema = z.strictObject({
   context: decisionContextSchema.nullable(),
   checks: z.array(deterministicCheckSchema),
   policy: decisionPolicySchema.nullable(),
 });
 
-export type ActionProposal = z.infer<typeof actionProposalSchema>;
-export type DecisionPolicy = z.infer<typeof decisionPolicySchema>;
 export type PreparedDecision = z.infer<typeof decisionPreparationSchema>;
