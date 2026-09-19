@@ -93,7 +93,7 @@ describe('decision evidence foundation', () => {
       expect(decision.evidence.assessments).toHaveLength(2);
       expect(decision.evidence.checks).toEqual(prepared.checks);
       expect(
-        assessResponse(decision.evidence.response, decision.evidence.policy!)
+        assessResponse(decision.evidence.jevResponse, decision.evidence.policy!)
           .verdict,
       ).toBe(decision.verdict);
       expect(await showAgent(db, workspace.id)).toEqual(before);
@@ -136,7 +136,7 @@ describe('decision evidence foundation', () => {
           evaluate,
         );
         expect(decision.verdict).toBe('ESCALATE');
-        expect(decision.evidence.request).toBeNull();
+        expect(decision.evidence.jevRequest).toBeNull();
       }
       const failed = {
         ...prepared,
@@ -214,7 +214,7 @@ describe('decision evidence foundation', () => {
       );
       expect(malformed.verdict).toBe('ESCALATE');
       expect(malformed.evidence.evaluationError).toBe('INVALID_RESPONSE');
-      expect(malformed.evidence.response).toEqual({ answers: {} });
+      expect(malformed.evidence.jevResponse).toEqual({ answers: {} });
     });
   });
 

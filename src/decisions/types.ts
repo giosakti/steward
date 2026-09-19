@@ -6,7 +6,7 @@ import type { ActionProposal, PreparedDecision } from './schemas.js';
 
 export type Verdict = 'ALLOW' | 'DENY' | 'ESCALATE';
 
-export interface Assessment {
+export interface SemanticAssessment {
   predicate: string;
   choice: string;
   probabilities: Record<string, number>;
@@ -17,17 +17,17 @@ export interface Assessment {
   minimumProbability: number;
 }
 
-export interface Evaluation {
+export interface DecisionEvaluation {
   verdict: Verdict;
-  assessments: Assessment[];
+  assessments: SemanticAssessment[];
   reason: string;
 }
 
 export interface DecisionEvidence extends PreparedDecision {
-  request: SystemOneRequestPayload | null;
-  response: JsonValue;
+  jevRequest: SystemOneRequestPayload | null;
+  jevResponse: JsonValue;
   evaluationError: 'JEV_UNAVAILABLE' | 'INVALID_RESPONSE' | null;
-  assessments: Assessment[];
+  assessments: SemanticAssessment[];
   reason: string;
 }
 

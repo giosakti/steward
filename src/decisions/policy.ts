@@ -7,7 +7,7 @@ import {
   type DecisionPolicy,
   type PreparedDecision,
 } from './schemas.js';
-import type { Evaluation } from './types.js';
+import type { DecisionEvaluation } from './types.js';
 
 const probability = z.number().min(0).max(1);
 const answerSchema = z.object({
@@ -28,7 +28,7 @@ const responseSchema = z.object({
 export function checkPrerequisites(
   proposal: ActionProposal,
   prepared: PreparedDecision,
-): Evaluation | null {
+): DecisionEvaluation | null {
   if (prepared.checks.some((check) => !check.passed)) {
     return {
       verdict: 'DENY',
@@ -85,7 +85,7 @@ export function evaluationRequest(
 export function assessResponse(
   raw: unknown,
   input: DecisionPolicy,
-): Evaluation {
+): DecisionEvaluation {
   const policy = decisionPolicySchema.parse(input);
   const response = responseSchema.parse(raw);
   if (

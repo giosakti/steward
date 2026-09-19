@@ -90,8 +90,8 @@ export async function evaluateIntent(
   const policyVersion = preparation.policy?.version ?? 'NO_POLICY';
   const evidence: DecisionEvidence = {
     ...preparation,
-    request,
-    response: null,
+    jevRequest: request,
+    jevResponse: null,
     evaluationError: null,
     assessments: [],
     reason: prerequisite?.reason ?? 'Awaiting semantic evaluation',
@@ -118,8 +118,11 @@ export async function evaluateIntent(
     try {
       const raw = await evaluateJev(request);
       failure = 'INVALID_RESPONSE';
-      evidence.response = z.json().parse(raw);
-      const assessment = assessResponse(evidence.response, preparation.policy);
+      evidence.jevResponse = z.json().parse(raw);
+      const assessment = assessResponse(
+        evidence.jevResponse,
+        preparation.policy,
+      );
       verdict = assessment.verdict;
       evidence.assessments = assessment.assessments;
       evidence.reason = assessment.reason;
