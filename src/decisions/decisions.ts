@@ -71,6 +71,9 @@ export async function showActionIntent(
 // Internal entry point for future Work Item/Run orchestration. The preparation
 // must come from trusted resolvers and policy code, not a proposal's author.
 // This records an evaluation; no executor may treat it as an execution grant.
+// TODO: Implement trusted Work Item/Run context resolvers that perform checks
+// against authoritative state, including Git worktree isolation. Check names
+// are evidence labels, not executable validators. Revalidate before execution.
 export async function evaluateIntent(
   db: Kysely<Database>,
   workspaceId: string,
