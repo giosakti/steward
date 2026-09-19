@@ -12,6 +12,9 @@ import { z } from 'zod';
 
 import type { Database } from '../storage/database.js';
 import { ApplicationError } from '../errors.js';
+import { missionRoutes } from '../missions/routes.js';
+import { goalRoutes } from '../goals/routes.js';
+import { workItemRoutes } from '../work-items/routes.js';
 import { workspaceRoutes } from '../workspaces/routes.js';
 
 export function buildApp(db: Kysely<Database>, token: string, logging = false) {
@@ -87,5 +90,8 @@ export function buildApp(db: Kysely<Database>, token: string, logging = false) {
     reply.code(404).send({ code: 'NOT_FOUND', error: 'Route not found' }),
   );
   app.register(workspaceRoutes, { db });
+  app.register(missionRoutes, { db });
+  app.register(goalRoutes, { db });
+  app.register(workItemRoutes, { db });
   return app;
 }
