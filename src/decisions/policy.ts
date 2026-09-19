@@ -2,7 +2,7 @@ import type { SystemOneRequestPayload } from '@typesafe-ai/sdk';
 import { z } from 'zod';
 
 import {
-  policySchema,
+  decisionPolicySchema,
   type ActionProposal,
   type DecisionPolicy,
   type PreparedDecision,
@@ -83,7 +83,7 @@ export function assessResponse(
   raw: unknown,
   input: DecisionPolicy,
 ): Evaluation {
-  const policy = policySchema.parse(input);
+  const policy = decisionPolicySchema.parse(input);
   const response = responseSchema.parse(raw);
   if (
     Object.keys(response.answers).length !==

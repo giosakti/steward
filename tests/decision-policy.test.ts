@@ -5,7 +5,10 @@ import {
   checkPrerequisites,
   evaluationRequest,
 } from '../src/decisions/policy.js';
-import { policySchema, preparationSchema } from '../src/decisions/schemas.js';
+import {
+  decisionPolicySchema,
+  decisionPreparationSchema,
+} from '../src/decisions/schemas.js';
 import {
   policy,
   preparation,
@@ -105,10 +108,10 @@ describe('decision policy composition', () => {
     ]) {
       const rules = policy();
       Object.assign(rules.predicates.action_satisfies_work_item!, patch);
-      expect(() => policySchema.parse(rules)).toThrow();
+      expect(() => decisionPolicySchema.parse(rules)).toThrow();
     }
     expect(() =>
-      preparationSchema.parse({
+      decisionPreparationSchema.parse({
         ...preparation(),
         context: { facts: {}, sources: [] },
       }),

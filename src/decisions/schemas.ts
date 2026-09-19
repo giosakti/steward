@@ -13,7 +13,7 @@ const text = z.string().trim().min(1);
 const probability = z.number().min(0).max(1);
 
 // Claims in a proposal are inputs to evaluation, never authoritative facts.
-export const actionIntentSchema = z.strictObject({
+export const actionProposalSchema = z.strictObject({
   type: text.max(100),
   objective: text.max(4000),
   rationale: text.max(4000),
@@ -23,20 +23,20 @@ export const actionIntentSchema = z.strictObject({
   riskClass: riskClassSchema,
 });
 
-export const checkSchema = z.strictObject({
+export const deterministicCheckSchema = z.strictObject({
   name: text,
   passed: z.boolean(),
   evidence: text,
 });
 
-export const contextSchema = z.strictObject({
+export const decisionContextSchema = z.strictObject({
   facts: z
     .record(z.string(), z.json())
     .refine((facts) => Object.keys(facts).length > 0, 'Context requires facts'),
   sources: z.array(text).min(1),
 });
 
-const predicateSchema = z
+const semanticPredicateSchema = z
   .strictObject({
     question: z.strictObject({
       type: z.literal('choice'),
@@ -64,24 +64,24 @@ const predicateSchema = z
 
 // Supplied by trusted application code, never an agent or HTTP request.
 // No action policy is registered by this foundation PR.
-export const policySchema = z.strictObject({
+export const decisionPolicySchema = z.strictObject({
   version: text,
   actionType: text,
   riskClass: riskClassSchema,
   predicates: z
-    .record(text, predicateSchema)
+    .record(text, semanticPredicateSchema)
     .refine(
       (predicates) => Object.keys(predicates).length > 0,
       'Policy requires semantic predicates',
     ),
 });
 
-export const preparationSchema = z.strictObject({
-  context: contextSchema.nullable(),
-  checks: z.array(checkSchema),
-  policy: policySchema.nullable(),
+export const decisionPreparationSchema = z.strictObject({
+  context: decisionContextSchema.nullable(),
+  checks: z.array(deterministicCheckSchema),
+  policy: decisionPolicySchema.nullable(),
 });
 
-export type ActionProposal = z.infer<typeof actionIntentSchema>;
-export type DecisionPolicy = z.infer<typeof policySchema>;
-export type PreparedDecision = z.infer<typeof preparationSchema>;
+export type ActionProposal = z.infer<typeof actionProposalSchema>;
+export type DecisionPolicy = z.infer<typeof decisionPolicySchema>;
+export type PreparedDecision = z.infer<typeof decisionPreparationSchema>;

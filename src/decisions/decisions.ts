@@ -14,8 +14,8 @@ import {
   evaluationRequest,
 } from './policy.js';
 import {
-  actionIntentSchema,
-  preparationSchema,
+  actionProposalSchema,
+  decisionPreparationSchema,
   type PreparedDecision,
 } from './schemas.js';
 import type { ActionIntent, Decision, DecisionEvidence } from './types.js';
@@ -27,7 +27,7 @@ export async function createActionIntent(
   actor: OperatorActor,
 ): Promise<ActionIntent> {
   const operator = validateOperatorActor(actor);
-  const proposal = actionIntentSchema.parse(input);
+  const proposal = actionProposalSchema.parse(input);
   return db.transaction().execute(async (trx) => {
     await showWorkspace(trx, workspaceId);
     const intent = await trx
@@ -81,7 +81,7 @@ export async function evaluateIntent(
 ): Promise<Decision> {
   const operator = validateOperatorActor(actor);
   const intent = await showActionIntent(db, workspaceId, intentId);
-  const preparation = preparationSchema.parse(prepared);
+  const preparation = decisionPreparationSchema.parse(prepared);
   const prerequisite = checkPrerequisites(intent.proposal, preparation);
   const request = prerequisite
     ? null
