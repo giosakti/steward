@@ -112,7 +112,7 @@ export async function evaluateIntent(
     })
     .execute();
 
-  let outcome = prerequisite?.outcome ?? 'ESCALATE';
+  let verdict = prerequisite?.verdict ?? 'ESCALATE';
   if (request && preparation.policy) {
     let failure: 'JEV_UNAVAILABLE' | 'INVALID_RESPONSE' = 'JEV_UNAVAILABLE';
     try {
@@ -120,11 +120,11 @@ export async function evaluateIntent(
       failure = 'INVALID_RESPONSE';
       evidence.response = z.json().parse(raw);
       const assessment = assessResponse(evidence.response, preparation.policy);
-      outcome = assessment.outcome;
+      verdict = assessment.verdict;
       evidence.assessments = assessment.assessments;
       evidence.reason = assessment.reason;
     } catch {
-      outcome = 'ESCALATE';
+      verdict = 'ESCALATE';
       // Raw SDK errors may include credentials. Persist only a failure category.
       evidence.evaluationError = failure;
       evidence.reason = 'Semantic evaluation could not be established';
@@ -138,7 +138,7 @@ export async function evaluateIntent(
         id,
         workspace_id: workspaceId,
         action_intent_id: intentId,
-        outcome,
+        verdict,
         policy_version: policyVersion,
         evidence: JSON.stringify(evidence),
       })
@@ -148,7 +148,7 @@ export async function evaluateIntent(
       ALLOW: 'DECISION_ALLOWED',
       DENY: 'DECISION_DENIED',
       ESCALATE: 'DECISION_ESCALATED',
-    }[outcome];
+    }[verdict];
     await record(trx, workspaceId, eventType, {
       decisionId: id,
       actionIntentId: intentId,

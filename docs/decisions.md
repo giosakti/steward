@@ -52,7 +52,7 @@ a Work Item or exceeds its scope. Each policy specifies its version, required
 questions, answer choices, accepted and denied choices, and probability thresholds.
 Independent questions are sent together in one request.
 
-| Outcome    | Meaning                                                                                                                  |
+| Verdict    | Meaning                                                                                                                  |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `ALLOW`    | All supplied deterministic checks and required semantic acceptance conditions passed.                                    |
 | `DENY`     | A deterministic constraint failed, the action or risk class mismatched policy, or a semantic conflict met its threshold. |
@@ -67,11 +67,11 @@ Thresholds belong to concrete action policies and need validation against outcom
 Action Intents and Decisions are workspace-scoped and append-only. A Decision
 preserves context and source references, deterministic checks, the full policy,
 the exact Jev request, JSON response, model identifier, token usage, assessments,
-thresholds, and outcome reason. This allows policy composition to be reconstructed
+thresholds, and verdict reason. This allows policy composition to be reconstructed
 from recorded evidence.
 
 `DECISION_REQUESTED` is recorded before contacting Jev. The final decision and its
-outcome event are committed in one transaction. If evaluation is interrupted or
+verdict event are committed in one transaction. If evaluation is interrupted or
 that transaction fails, the request remains as evidence of an incomplete attempt;
 it cannot imply permission to act.
 

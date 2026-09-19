@@ -11,7 +11,7 @@ CREATE TABLE decisions (
   id uuid PRIMARY KEY,
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
   action_intent_id uuid NOT NULL,
-  outcome text NOT NULL CHECK (outcome IN ('ALLOW', 'DENY', 'ESCALATE')),
+  verdict text NOT NULL CHECK (verdict IN ('ALLOW', 'DENY', 'ESCALATE')),
   policy_version text NOT NULL,
   evidence jsonb NOT NULL CHECK (jsonb_typeof(evidence) = 'object'),
   created_at timestamptz NOT NULL DEFAULT now(),

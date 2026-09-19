@@ -82,7 +82,7 @@ describe('decision evidence foundation', () => {
         operator,
         evaluate,
       );
-      expect(decision.outcome).toBe('ALLOW');
+      expect(decision.verdict).toBe('ALLOW');
       expect(evaluate).toHaveBeenCalledOnce();
       expect(decision.evidence.context).toEqual(prepared.context);
       expect(decision.evidence.policy).toEqual(prepared.policy);
@@ -90,8 +90,8 @@ describe('decision evidence foundation', () => {
       expect(decision.evidence.checks).toEqual(prepared.checks);
       expect(
         assessResponse(decision.evidence.response, decision.evidence.policy!)
-          .outcome,
-      ).toBe(decision.outcome);
+          .verdict,
+      ).toBe(decision.verdict);
       expect(await showAgent(db, workspace.id)).toEqual(before);
       expect(decision).not.toHaveProperty('authorization');
       const connection = connectDatabase(url);
@@ -131,7 +131,7 @@ describe('decision evidence foundation', () => {
           operator,
           evaluate,
         );
-        expect(decision.outcome).toBe('ESCALATE');
+        expect(decision.verdict).toBe('ESCALATE');
         expect(decision.evidence.request).toBeNull();
       }
       const failed = {
@@ -154,7 +154,7 @@ describe('decision evidence foundation', () => {
             operator,
             evaluate,
           )
-        ).outcome,
+        ).verdict,
       ).toBe('DENY');
       const wrongRisk = {
         ...prepared,
@@ -170,7 +170,7 @@ describe('decision evidence foundation', () => {
             operator,
             evaluate,
           )
-        ).outcome,
+        ).verdict,
       ).toBe('DENY');
       expect(evaluate).not.toHaveBeenCalled();
     });
@@ -196,7 +196,7 @@ describe('decision evidence foundation', () => {
           operator,
           evaluate,
         );
-        expect(decision.outcome).toBe('ESCALATE');
+        expect(decision.verdict).toBe('ESCALATE');
         expect(decision.evidence.evaluationError).toBe('JEV_UNAVAILABLE');
         expect(JSON.stringify(decision)).not.toContain('secret-api-key');
       }
@@ -208,7 +208,7 @@ describe('decision evidence foundation', () => {
         operator,
         () => Promise.resolve({ answers: {} }),
       );
-      expect(malformed.outcome).toBe('ESCALATE');
+      expect(malformed.verdict).toBe('ESCALATE');
       expect(malformed.evidence.evaluationError).toBe('INVALID_RESPONSE');
       expect(malformed.evidence.response).toEqual({ answers: {} });
     });
@@ -255,14 +255,14 @@ describe('decision evidence foundation', () => {
       expect(evaluate).not.toHaveBeenCalled();
       await expect(
         client.query(
-          "INSERT INTO decisions(id,workspace_id,action_intent_id,outcome,policy_version,evidence) VALUES ($1,$2,$3,'ALLOW','test','{}')",
+          "INSERT INTO decisions(id,workspace_id,action_intent_id,verdict,policy_version,evidence) VALUES ($1,$2,$3,'ALLOW','test','{}')",
           [randomUUID(), other.id, intent.id],
         ),
       ).rejects.toThrow(/foreign key/);
     });
   });
 
-  it('preserves immutable evidence and rolls back decisions when the outcome event fails', async () => {
+  it('preserves immutable evidence and rolls back decisions when the verdict event fails', async () => {
     await setup(async ({ db, client, workspace }) => {
       const intent = await createActionIntent(
         db,

@@ -60,7 +60,7 @@ const predicateSchema = z
         (label) => labels.includes(label) && label !== predicate.acceptedChoice,
       )
     );
-  }, 'Policy choices must belong to the question and have distinct outcomes');
+  }, 'Policy choices must belong to the question and have distinct verdicts');
 
 // Supplied by trusted application code, never an agent or HTTP request.
 // No action policy is registered by this foundation PR.

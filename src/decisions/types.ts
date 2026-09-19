@@ -4,7 +4,7 @@ import type { JsonValue, SystemOneRequestPayload } from '@typesafe-ai/sdk';
 import type { OperatorActor } from '../audit/actor.js';
 import type { ActionProposal, PreparedDecision } from './schemas.js';
 
-export type Outcome = 'ALLOW' | 'DENY' | 'ESCALATE';
+export type Verdict = 'ALLOW' | 'DENY' | 'ESCALATE';
 
 export interface Assessment {
   predicate: string;
@@ -18,7 +18,7 @@ export interface Assessment {
 }
 
 export interface Evaluation {
-  outcome: Outcome;
+  verdict: Verdict;
   assessments: Assessment[];
   reason: string;
 }
@@ -43,7 +43,7 @@ export interface DecisionTable {
   id: string;
   workspace_id: string;
   action_intent_id: string;
-  outcome: Outcome;
+  verdict: Verdict;
   policy_version: string;
   evidence: JSONColumnType<DecisionEvidence>;
   created_at: Generated<Date>;

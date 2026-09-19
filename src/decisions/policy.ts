@@ -31,14 +31,14 @@ export function checkPrerequisites(
 ): Evaluation | null {
   if (prepared.checks.some((check) => !check.passed)) {
     return {
-      outcome: 'DENY',
+      verdict: 'DENY',
       assessments: [],
       reason: 'Deterministic check failed',
     };
   }
   if (!prepared.policy || !prepared.context || prepared.checks.length === 0) {
     return {
-      outcome: 'ESCALATE',
+      verdict: 'ESCALATE',
       assessments: [],
       reason:
         'Action policy, authoritative context, or deterministic checks unavailable',
@@ -49,7 +49,7 @@ export function checkPrerequisites(
     prepared.policy.riskClass !== proposal.riskClass
   ) {
     return {
-      outcome: 'DENY',
+      verdict: 'DENY',
       assessments: [],
       reason: 'Proposal action or risk class does not match the trusted policy',
     };
@@ -130,21 +130,21 @@ export function assessResponse(
     )
   ) {
     return {
-      outcome: 'DENY',
+      verdict: 'DENY',
       assessments,
       reason: 'Semantic conflict established',
     };
   }
   if (assessments.every((item) => item.accepted)) {
     return {
-      outcome: 'ALLOW',
+      verdict: 'ALLOW',
       assessments,
       reason:
         'Supplied checks and semantic predicates passed; no execution authorization issued',
     };
   }
   return {
-    outcome: 'ESCALATE',
+    verdict: 'ESCALATE',
     assessments,
     reason: 'Semantic evidence is uncertain or insufficient',
   };

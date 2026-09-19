@@ -17,26 +17,26 @@ describe('decision policy composition', () => {
   it('requires every predicate to meet its own policy threshold', () => {
     const rules = policy();
     const raw = response();
-    expect(assessResponse(raw, rules).outcome).toBe('ALLOW');
+    expect(assessResponse(raw, rules).verdict).toBe('ALLOW');
     raw.answers.scope_is_minimal.probabilities = {
       BOUNDED: 0.9,
       EXCESSIVE: 0.05,
       UNCLEAR: 0.05,
     };
-    expect(assessResponse(raw, rules).outcome).toBe('ALLOW');
+    expect(assessResponse(raw, rules).verdict).toBe('ALLOW');
     raw.answers.scope_is_minimal.probabilities = {
       BOUNDED: 0.899,
       EXCESSIVE: 0.051,
       UNCLEAR: 0.05,
     };
-    expect(assessResponse(raw, rules).outcome).toBe('ESCALATE');
+    expect(assessResponse(raw, rules).verdict).toBe('ESCALATE');
     rules.predicates.scope_is_minimal!.minimumProbability = 0.95;
     raw.answers.scope_is_minimal.probabilities = {
       BOUNDED: 0.94,
       EXCESSIVE: 0.03,
       UNCLEAR: 0.03,
     };
-    expect(assessResponse(raw, rules).outcome).toBe('ESCALATE');
+    expect(assessResponse(raw, rules).verdict).toBe('ESCALATE');
   });
 
   it('denies established conflicts and escalates uncertainty regardless of confidence', () => {
@@ -47,14 +47,14 @@ describe('decision policy composition', () => {
       EXCESSIVE: 0.98,
       UNCLEAR: 0.01,
     };
-    expect(assessResponse(raw, policy()).outcome).toBe('DENY');
+    expect(assessResponse(raw, policy()).verdict).toBe('DENY');
     raw.answers.scope_is_minimal.choice = 'UNCLEAR';
     raw.answers.scope_is_minimal.probabilities = {
       BOUNDED: 0.01,
       EXCESSIVE: 0.01,
       UNCLEAR: 0.98,
     };
-    expect(assessResponse(raw, policy()).outcome).toBe('ESCALATE');
+    expect(assessResponse(raw, policy()).verdict).toBe('ESCALATE');
   });
 
   it.each([
@@ -119,15 +119,15 @@ describe('decision policy composition', () => {
     const prepared = preparation();
     expect(checkPrerequisites(proposal(), prepared)).toBeNull();
     expect(
-      checkPrerequisites({ ...proposal(), type: 'deploy' }, prepared)?.outcome,
+      checkPrerequisites({ ...proposal(), type: 'deploy' }, prepared)?.verdict,
     ).toBe('DENY');
     expect(
       checkPrerequisites({ ...proposal(), riskClass: 'READ_ONLY' }, prepared)
-        ?.outcome,
+        ?.verdict,
     ).toBe('DENY');
     for (const patch of [{ context: null }, { policy: null }, { checks: [] }]) {
       expect(
-        checkPrerequisites(proposal(), { ...prepared, ...patch })?.outcome,
+        checkPrerequisites(proposal(), { ...prepared, ...patch })?.verdict,
       ).toBe('ESCALATE');
     }
     expect(
@@ -136,7 +136,7 @@ describe('decision policy composition', () => {
         context: null,
         policy: null,
         checks: [{ name: 'scope', passed: false, evidence: 'Wrong workspace' }],
-      })?.outcome,
+      })?.verdict,
     ).toBe('DENY');
   });
 
