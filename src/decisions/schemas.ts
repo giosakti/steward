@@ -12,7 +12,7 @@ export const riskLabelSchema = z.enum([
   'SECURITY_SENSITIVE',
 ]);
 
-// JSON stores a set as an array. Reject duplicates; ordering has no meaning.
+// Label order has no meaning; every applicable risk must be represented.
 export const riskLabelsSchema = z
   .array(riskLabelSchema)
   .min(1)
@@ -91,7 +91,6 @@ const semanticPredicateSchema = z
   }, 'Policy choices must belong to the question and have distinct verdicts');
 
 // Supplied by trusted application code, never an agent or HTTP request.
-// No action policy is registered by this foundation PR.
 export const decisionPolicySchema = z.strictObject({
   version: text,
   actionType: text,

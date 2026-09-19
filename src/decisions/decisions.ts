@@ -48,9 +48,8 @@ export async function createActionIntent(
   });
 }
 
-// Internal entry point for future Work Item/Run orchestration. The preparation
-// must come from trusted resolvers and policy code, not a proposal's author.
-// This records an evaluation; no executor may treat it as an execution grant.
+// Preparation must come from trusted resolvers and policy code, never the
+// proposal's author. A stored ALLOW is not an execution grant.
 // TODO: Implement trusted Work Item/Run context resolvers that perform checks
 // against authoritative state, including Git worktree isolation. Check names
 // are evidence labels, not executable validators. Revalidate before execution.

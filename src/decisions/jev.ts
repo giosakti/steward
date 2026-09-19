@@ -5,7 +5,6 @@ export type EvaluateJev = (
 ) => Promise<unknown>;
 
 export function createJevEvaluator(apiKey: string | undefined): EvaluateJev {
-  // Defer missing-credential errors until evaluation is requested.
   return async (request) => {
     if (!apiKey) {
       throw new Error('Jev unavailable');
