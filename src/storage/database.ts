@@ -7,6 +7,11 @@ import {
 import pg from 'pg';
 
 import type { ActionIntentTable, DecisionTable } from '../decisions/types.js';
+import type { GoalTable, GoalRelationshipTable } from '../goals/types.js';
+import type {
+  WorkItemTable,
+  WorkItemRelationshipTable,
+} from '../work-items/types.js';
 import type { AgentTable, WorkspaceTable } from '../workspaces/types.js';
 
 export function connectDatabase(connectionString: string): Kysely<Database> {
@@ -19,10 +24,14 @@ export function connectDatabase(connectionString: string): Kysely<Database> {
 
 // These types mirror the SQL migrations; PostgreSQL remains the schema authority.
 export interface Database {
-  action_intents: ActionIntentTable;
-  decisions: DecisionTable;
   workspaces: WorkspaceTable;
   agents: AgentTable;
+  goals: GoalTable;
+  goal_relationships: GoalRelationshipTable;
+  work_items: WorkItemTable;
+  work_item_relationships: WorkItemRelationshipTable;
+  action_intents: ActionIntentTable;
+  decisions: DecisionTable;
   events: {
     id: GeneratedAlways<string>;
     workspace_id: string | null;

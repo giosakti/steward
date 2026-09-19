@@ -97,9 +97,10 @@ implemented. There are no decision HTTP endpoints or registered action policies.
 Tests use synthetic Work Item evidence and test-only policies; they do not establish
 semantic accuracy or calibrated thresholds.
 
-Work Item and Run models, their decision relationships, authoritative context
-resolvers, and execution integration are still to be built. Before execution is
-connected, authorization must be bound to the action, target, evaluated state,
-and lifetime, with state revalidated immediately before execution. A stored
+Missions, Goals, and Work Items are available through the operator API. Run
+models, decision relationships, authoritative context resolvers, and execution
+integration are still to be built. Before execution is connected, authorization
+must be bound to the action, target, evaluated state, and lifetime, with state
+revalidated immediately before execution. A stored
 `ALLOW` alone is not an execution credential. Human approval and application will
 remain separate operations.

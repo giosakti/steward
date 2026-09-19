@@ -1,17 +1,21 @@
 import { randomUUID } from 'node:crypto';
 
-import Fastify from 'fastify';
 import bearerAuth from '@fastify/bearer-auth';
 import {
   validatorCompiler,
   serializerCompiler,
   hasZodFastifySchemaValidationErrors,
 } from '@fastify/type-provider-zod';
+import Fastify from 'fastify';
 import type { Kysely } from 'kysely';
 import { z } from 'zod';
 
-import type { Database } from '../storage/database.js';
 import { ApplicationError } from '../errors.js';
+import { goalRelationshipRoutes } from '../goals/relationship-routes.js';
+import { goalRoutes } from '../goals/routes.js';
+import type { Database } from '../storage/database.js';
+import { workItemRelationshipRoutes } from '../work-items/relationship-routes.js';
+import { workItemRoutes } from '../work-items/routes.js';
 import { workspaceRoutes } from '../workspaces/routes.js';
 
 export function buildApp(db: Kysely<Database>, token: string, logging = false) {
@@ -87,5 +91,9 @@ export function buildApp(db: Kysely<Database>, token: string, logging = false) {
     reply.code(404).send({ code: 'NOT_FOUND', error: 'Route not found' }),
   );
   app.register(workspaceRoutes, { db });
+  app.register(goalRoutes, { db });
+  app.register(goalRelationshipRoutes, { db });
+  app.register(workItemRoutes, { db });
+  app.register(workItemRelationshipRoutes, { db });
   return app;
 }

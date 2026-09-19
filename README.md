@@ -8,8 +8,9 @@ constrained executors carry them out. Human review and recorded evidence are
 central to the design.
 
 **Status: early development.** Workspace management and configurable root agents
-are available through an authenticated HTTP API and CLI. Agent execution and
-learning are not implemented yet.
+are available through an authenticated HTTP API and CLI. Missions, goals, and
+work items are available through the API. Agent execution and learning are not
+implemented yet.
 
 ## Getting started
 
@@ -97,4 +98,5 @@ PostgreSQL 18 service.
 
 - [Workspaces and CLI](docs/workspaces.md)
 - [HTTP API](docs/http-api.md)
+- [Missions, Goals, and Work Items](docs/intent-hierarchy.md)
 - [Decision Kernel](docs/decisions.md)

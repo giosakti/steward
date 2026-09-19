@@ -8,6 +8,11 @@ Keep runtime schemas and SQL in dependency order where initialization requires
 it. Do not introduce lazy initialization, classes, or extra modules solely to
 force a particular reading order.
 
+Group imports as Node built-ins, external packages, then internal modules; sort
+by module path within each group. Group route registrations and database tables
+by domain: workspace (including mission and root agent), goals and their
+relationships, work items and their relationships, decisions, then audit events.
+
 # Code comments
 
 Explain intent, constraints, tradeoffs, or context that the code cannot convey
