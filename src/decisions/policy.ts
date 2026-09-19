@@ -46,12 +46,15 @@ export function checkPrerequisites(
   }
   if (
     prepared.policy.actionType !== proposal.type ||
-    prepared.policy.riskClass !== proposal.riskClass
+    prepared.policy.riskLabels.length !== proposal.riskLabels.length ||
+    prepared.policy.riskLabels.some(
+      (label) => !proposal.riskLabels.includes(label),
+    )
   ) {
     return {
       verdict: 'DENY',
       assessments: [],
-      reason: 'Proposal action or risk class does not match the trusted policy',
+      reason: 'Proposal action or risk labels do not match the trusted policy',
     };
   }
   return null;

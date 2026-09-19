@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const riskClassSchema = z.enum([
+export const riskLabelSchema = z.enum([
   'READ_ONLY',
   'LOCAL_REVERSIBLE',
   'EXTERNAL_REVERSIBLE',
@@ -8,6 +8,32 @@ export const riskClassSchema = z.enum([
   'IRREVERSIBLE',
   'SECURITY_SENSITIVE',
 ]);
+
+// JSON stores a set as an array. Reject duplicates; ordering has no meaning.
+export const riskLabelsSchema = z
+  .array(riskLabelSchema)
+  .min(1)
+  .refine(
+    (labels) => new Set(labels).size === labels.length,
+    'Risk labels must be unique',
+  )
+  .refine((labels) => {
+    const mutation = labels.some(
+      (label) =>
+        label === 'LOCAL_REVERSIBLE' ||
+        label === 'EXTERNAL_REVERSIBLE' ||
+        label === 'DESTRUCTIVE' ||
+        label === 'IRREVERSIBLE',
+    );
+    return !labels.includes('READ_ONLY') || !mutation;
+  }, 'READ_ONLY cannot be combined with mutation labels')
+  .refine(
+    (labels) =>
+      !labels.includes('IRREVERSIBLE') ||
+      (!labels.includes('LOCAL_REVERSIBLE') &&
+        !labels.includes('EXTERNAL_REVERSIBLE')),
+    'IRREVERSIBLE cannot be combined with reversible labels',
+  );
 
 const text = z.string().trim().min(1);
 const probability = z.number().min(0).max(1);
@@ -20,7 +46,7 @@ export const actionProposalSchema = z.strictObject({
   intendedScope: text.max(4000),
   intendedTarget: text.max(4000).optional(),
   expectedEffect: text.max(4000),
-  riskClass: riskClassSchema,
+  riskLabels: riskLabelsSchema,
 });
 
 export const deterministicCheckSchema = z.strictObject({
@@ -67,7 +93,7 @@ const semanticPredicateSchema = z
 export const decisionPolicySchema = z.strictObject({
   version: text,
   actionType: text,
-  riskClass: riskClassSchema,
+  riskLabels: riskLabelsSchema,
   predicates: z
     .record(text, semanticPredicateSchema)
     .refine(

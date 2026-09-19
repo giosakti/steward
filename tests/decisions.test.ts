@@ -56,14 +56,18 @@ async function setup(run: (context: Context) => Promise<void>) {
 describe('decision evidence foundation', () => {
   it('preserves the supplied context, policy and judgments without executing anything', async () => {
     await setup(async ({ db, client, workspace, url }) => {
+      const proposed = proposal();
+      proposed.riskLabels = ['DESTRUCTIVE', 'SECURITY_SENSITIVE'];
+      const prepared = preparation();
+      prepared.policy!.riskLabels = ['SECURITY_SENSITIVE', 'DESTRUCTIVE'];
       const intent = await createActionIntent(
         db,
         workspace.id,
-        proposal(),
+        proposed,
         operator,
       );
+      expect(intent.proposal.riskLabels).toEqual(proposed.riskLabels);
       const before = await showAgent(db, workspace.id);
-      const prepared = preparation();
       const evaluate = vi.fn<EvaluateJev>(async () => {
         const requested = await client.query<{
           payload: { evidence: { reason: string } };
@@ -158,7 +162,7 @@ describe('decision evidence foundation', () => {
       ).toBe('DENY');
       const wrongRisk = {
         ...prepared,
-        policy: { ...prepared.policy!, riskClass: 'READ_ONLY' as const },
+        policy: { ...prepared.policy!, riskLabels: ['READ_ONLY' as const] },
       };
       expect(
         (

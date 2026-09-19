@@ -16,7 +16,7 @@ export function proposal(): ActionProposal {
     intendedTarget: 'fixture-worktree',
     expectedEffect:
       'A report displays recorded blockers without changing authorization',
-    riskClass: 'LOCAL_REVERSIBLE',
+    riskLabels: ['LOCAL_REVERSIBLE'],
   };
 }
 
@@ -24,7 +24,7 @@ export function policy(): DecisionPolicy {
   return {
     version: 'test-only-v1',
     actionType: 'modify_code',
-    riskClass: 'LOCAL_REVERSIBLE',
+    riskLabels: ['LOCAL_REVERSIBLE'],
     predicates: {
       action_satisfies_work_item: {
         question: {

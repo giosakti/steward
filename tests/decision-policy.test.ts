@@ -6,6 +6,8 @@ import {
   evaluationRequest,
 } from '../src/decisions/policy.js';
 import {
+  actionProposalSchema,
+  riskLabelsSchema,
   decisionPolicySchema,
   decisionPreparationSchema,
 } from '../src/decisions/schemas.js';
@@ -125,7 +127,7 @@ describe('decision policy composition', () => {
       checkPrerequisites({ ...proposal(), type: 'deploy' }, prepared)?.verdict,
     ).toBe('DENY');
     expect(
-      checkPrerequisites({ ...proposal(), riskClass: 'READ_ONLY' }, prepared)
+      checkPrerequisites({ ...proposal(), riskLabels: ['READ_ONLY'] }, prepared)
         ?.verdict,
     ).toBe('DENY');
     for (const patch of [{ context: null }, { policy: null }, { checks: [] }]) {
@@ -154,5 +156,74 @@ describe('decision policy composition', () => {
       'action_satisfies_work_item',
       'scope_is_minimal',
     ]);
+  });
+});
+
+describe('risk label sets', () => {
+  it.each([
+    ['DESTRUCTIVE', 'SECURITY_SENSITIVE'],
+    ['READ_ONLY', 'SECURITY_SENSITIVE'],
+    ['LOCAL_REVERSIBLE', 'EXTERNAL_REVERSIBLE'],
+  ])('accepts compatible labels: %j', (...labels) => {
+    expect(riskLabelsSchema.parse(labels)).toEqual(labels);
+  });
+
+  it.each([
+    [],
+    ['UNKNOWN'],
+    ['DESTRUCTIVE', 'DESTRUCTIVE'],
+    ['READ_ONLY', 'DESTRUCTIVE'],
+    ['READ_ONLY', 'IRREVERSIBLE'],
+    ['READ_ONLY', 'LOCAL_REVERSIBLE'],
+    ['READ_ONLY', 'EXTERNAL_REVERSIBLE'],
+    ['IRREVERSIBLE', 'LOCAL_REVERSIBLE'],
+    ['IRREVERSIBLE', 'EXTERNAL_REVERSIBLE'],
+  ])('rejects invalid label sets (%#)', (...labels) => {
+    expect(() => riskLabelsSchema.parse(labels)).toThrow();
+  });
+
+  it('matches order-independent sets and denies omitted or extra risks', () => {
+    const prepared = preparation();
+    prepared.policy!.riskLabels = ['DESTRUCTIVE', 'SECURITY_SENSITIVE'];
+    const proposed = {
+      ...proposal(),
+      riskLabels: ['SECURITY_SENSITIVE', 'DESTRUCTIVE'] as (
+        'SECURITY_SENSITIVE' | 'DESTRUCTIVE'
+      )[],
+    };
+    expect(checkPrerequisites(proposed, prepared)).toBeNull();
+    expect(
+      checkPrerequisites({ ...proposed, riskLabels: ['DESTRUCTIVE'] }, prepared)
+        ?.verdict,
+    ).toBe('DENY');
+    expect(
+      checkPrerequisites(
+        {
+          ...proposed,
+          riskLabels: ['DESTRUCTIVE', 'SECURITY_SENSITIVE', 'IRREVERSIBLE'],
+        },
+        prepared,
+      )?.verdict,
+    ).toBe('DENY');
+  });
+
+  it('requires riskLabels on proposals and policies rather than the old scalar field', () => {
+    const proposed = { ...proposal(), riskLabels: undefined };
+    const rules = { ...policy(), riskLabels: undefined };
+    expect(() =>
+      actionProposalSchema.parse({
+        ...proposed,
+        riskClass: 'LOCAL_REVERSIBLE',
+      }),
+    ).toThrow();
+    expect(() =>
+      decisionPolicySchema.parse({ ...rules, riskClass: 'LOCAL_REVERSIBLE' }),
+    ).toThrow();
+    expect(() =>
+      decisionPolicySchema.parse({
+        ...rules,
+        riskLabels: ['READ_ONLY', 'DESTRUCTIVE'],
+      }),
+    ).toThrow();
   });
 });

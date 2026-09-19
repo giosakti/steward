@@ -10,7 +10,7 @@ decision. A reasoning model can propose an action, but cannot authorize it.
 A **Work Item** describes an outcome to accomplish. A **Run** is one attempt to
 accomplish it. An **Action Intent** describes a proposed consequential action:
 its objective, rationale, scope, optional target, expected effect, and claimed
-risk class. A **Decision** records an evaluation of that intent.
+risk labels. A **Decision** records an evaluation of that intent.
 
 For example, consider a Work Item to add a readable decision report. A coding
 workflow could create a Run and progressively propose actions to prepare an
@@ -45,18 +45,27 @@ deterministic verdicts, or policy definitions.
 Deterministic checks establish mechanically verifiable conditions, such as a
 target belonging to the permitted workspace. A failed check yields `DENY` without
 calling Jev. Missing context, policy, or checks yields `ESCALATE`. The proposal's
-action type and risk class must match the selected policy.
+action type and risk labels must match the selected policy. Labels are compared
+as a set, independent of their order. Trusted policy code must establish all
+applicable risks and include their safeguards; a proposal cannot omit a label
+to reduce requirements.
+
+Risk labels are controlled values, not free-form tags. For example, an action
+can be both `DESTRUCTIVE` and `SECURITY_SENSITIVE`. Sets must be nonempty and
+contain no duplicates. `READ_ONLY` conflicts with mutation labels, and
+`IRREVERSIBLE` conflicts with either reversible label. `READ_ONLY` may coexist
+with `SECURITY_SENSITIVE`, such as reading protected data.
 
 Jev answers narrow semantic questions, such as whether a proposed change satisfies
 a Work Item or exceeds its scope. Each policy specifies its version, required
 questions, answer choices, accepted and denied choices, and probability thresholds.
 Independent questions are sent together in one request.
 
-| Verdict    | Meaning                                                                                                                  |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `ALLOW`    | All supplied deterministic checks and required semantic acceptance conditions passed.                                    |
-| `DENY`     | A deterministic constraint failed, the action or risk class mismatched policy, or a semantic conflict met its threshold. |
-| `ESCALATE` | Required evidence or evaluation is unavailable, or semantic results are uncertain.                                       |
+| Verdict    | Meaning                                                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `ALLOW`    | All supplied deterministic checks and required semantic acceptance conditions passed.                                     |
+| `DENY`     | A deterministic constraint failed, the action or risk labels mismatched policy, or a semantic conflict met its threshold. |
+| `ESCALATE` | Required evidence or evaluation is unavailable, or semantic results are uncertain.                                        |
 
 Deterministic denial takes precedence over semantic judgment. Jev's reported
 confidence is preserved, but is not itself the probability that execution is safe.
