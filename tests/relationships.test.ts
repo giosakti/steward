@@ -1,7 +1,8 @@
-import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+
 import type { Kysely } from 'kysely';
 import type pg from 'pg';
 import { describe, expect, it } from 'vitest';
@@ -14,11 +15,11 @@ import {
 } from '../src/goals/relationships.js';
 import { buildApp } from '../src/http/app.js';
 import { connectDatabase, type Database } from '../src/storage/database.js';
-import { createWorkItem } from '../src/work-items/work-items.js';
 import {
   createWorkItemRelationship,
   removeWorkItemRelationship,
 } from '../src/work-items/relationships.js';
+import { createWorkItem } from '../src/work-items/work-items.js';
 import { createWorkspace } from '../src/workspaces/workspaces.js';
 import { isolated } from './database.js';
 

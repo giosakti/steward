@@ -1,5 +1,13 @@
 import type { Generated, Selectable } from 'kysely';
 
+export type Workspace = Selectable<WorkspaceTable>;
+export type Agent = Selectable<AgentTable>;
+
+export interface WorkspaceMission {
+  workspace_id: string;
+  statement: string;
+}
+
 export interface WorkspaceTable {
   id: string;
   slug: string;
@@ -21,12 +29,4 @@ export interface AgentTable {
   role_description: Generated<string | null>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
-}
-
-export type Workspace = Selectable<WorkspaceTable>;
-export type Agent = Selectable<AgentTable>;
-
-export interface WorkspaceMission {
-  workspace_id: string;
-  statement: string;
 }

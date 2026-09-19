@@ -1,16 +1,16 @@
-import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from '@fastify/type-provider-zod';
+import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
 import { z } from 'zod';
 
 import type { Database } from '../storage/database.js';
+import { createWorkItemSchema, updateWorkItemSchema } from './schemas.js';
 import {
   createWorkItem,
   updateWorkItem,
   listWorkItems,
   showWorkItem,
 } from './work-items.js';
-import { createWorkItemSchema, updateWorkItemSchema } from './schemas.js';
 
 export function workItemRoutes(
   server: FastifyInstance,

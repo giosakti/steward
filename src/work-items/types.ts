@@ -1,5 +1,6 @@
 import type { Generated, JSONColumnType, Selectable } from 'kysely';
 import type { z } from 'zod';
+
 import type { workItemStatusSchema } from './schemas.js';
 
 export type WorkItem = Selectable<WorkItemTable>;

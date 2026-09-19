@@ -1,16 +1,16 @@
-import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from '@fastify/type-provider-zod';
+import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
 import { z } from 'zod';
 
 import type { Database } from '../storage/database.js';
-import { createGoalRelationshipSchema } from './schemas.js';
 import {
   createGoalRelationship,
   removeGoalRelationship,
   listGoalRelationships,
   showGoalRelationship,
 } from './relationships.js';
+import { createGoalRelationshipSchema } from './schemas.js';
 
 export function goalRelationshipRoutes(
   server: FastifyInstance,

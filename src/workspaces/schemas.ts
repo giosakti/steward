@@ -17,6 +17,14 @@ export const createWorkspaceSchema = z.strictObject({
   rootPath: nonblank('Root path').optional(),
 });
 
+export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
+
+export const setMissionSchema = z.strictObject({
+  statement: z.string().trim().min(1).max(10000),
+});
+
+export type SetMissionInput = z.infer<typeof setMissionSchema>;
+
 export const configureAgentSchema = z
   .strictObject({
     name: nonblank('Agent name').optional(),
@@ -28,11 +36,4 @@ export const configureAgentSchema = z
     'Provide --name, --title, or --role-description',
   );
 
-export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
 export type ConfigureAgentInput = z.infer<typeof configureAgentSchema>;
-
-export const setMissionSchema = z.strictObject({
-  statement: z.string().trim().min(1).max(10000),
-});
-
-export type SetMissionInput = z.infer<typeof setMissionSchema>;

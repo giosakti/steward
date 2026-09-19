@@ -1,7 +1,8 @@
-import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+
 import type { Kysely } from 'kysely';
 import type pg from 'pg';
 import { describe, expect, it } from 'vitest';
@@ -10,16 +11,16 @@ import type { OperatorActor } from '../src/audit/actor.js';
 import { createGoal, updateGoal, showGoal } from '../src/goals/goals.js';
 import type { Goal } from '../src/goals/types.js';
 import { buildApp } from '../src/http/app.js';
-import { setMission, showMission } from '../src/workspaces/mission.js';
 import { connectDatabase, type Database } from '../src/storage/database.js';
+import type { WorkItem } from '../src/work-items/types.js';
 import {
   createWorkItem,
   updateWorkItem,
   showWorkItem,
 } from '../src/work-items/work-items.js';
-import type { WorkItem } from '../src/work-items/types.js';
-import { createWorkspace } from '../src/workspaces/workspaces.js';
+import { setMission, showMission } from '../src/workspaces/mission.js';
 import type { Workspace } from '../src/workspaces/types.js';
+import { createWorkspace } from '../src/workspaces/workspaces.js';
 import { isolated } from './database.js';
 
 describe('operator intent hierarchy', () => {

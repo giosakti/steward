@@ -3,9 +3,9 @@ import { sql, type Kysely } from 'kysely';
 import { validateOperatorActor, type OperatorActor } from '../audit/actor.js';
 import { ApplicationError } from '../errors.js';
 import type { Database } from '../storage/database.js';
-import { showWorkspace } from './workspaces.js';
 import { setMissionSchema, type SetMissionInput } from './schemas.js';
 import type { WorkspaceMission } from './types.js';
+import { showWorkspace } from './workspaces.js';
 
 export async function setMission(
   db: Kysely<Database>,

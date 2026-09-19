@@ -1,15 +1,16 @@
-import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from '@fastify/type-provider-zod';
+import type { FastifyInstance } from 'fastify';
 import type { Kysely } from 'kysely';
 import { z } from 'zod';
-import type { Database } from '../storage/database.js';
+
 import type { OperatorActor } from '../audit/actor.js';
+import type { Database } from '../storage/database.js';
+import { setMission, showMission } from './mission.js';
 import {
   createWorkspaceSchema,
   configureAgentSchema,
   setMissionSchema,
 } from './schemas.js';
-import { setMission, showMission } from './mission.js';
 import {
   createWorkspace,
   listWorkspaces,
@@ -53,17 +54,6 @@ export function workspaceRoutes(
     { schema: { params, querystring } },
     (request) => showWorkspace(db, request.params.id),
   );
-  app.get(
-    '/api/v1/workspaces/:id/agent',
-    { schema: { params, querystring } },
-    (request) => showAgent(db, request.params.id),
-  );
-  app.patch(
-    '/api/v1/workspaces/:id/agent',
-    { schema: { params, querystring, body: configureAgentSchema } },
-    (request) =>
-      configureAgent(db, request.body, request.params.id, operator(request.id)),
-  );
   app.put(
     '/api/v1/workspaces/:id/mission',
     { schema: { params, querystring, body: setMissionSchema } },
@@ -74,6 +64,17 @@ export function workspaceRoutes(
     '/api/v1/workspaces/:id/mission',
     { schema: { params, querystring } },
     (request) => showMission(db, request.params.id),
+  );
+  app.get(
+    '/api/v1/workspaces/:id/agent',
+    { schema: { params, querystring } },
+    (request) => showAgent(db, request.params.id),
+  );
+  app.patch(
+    '/api/v1/workspaces/:id/agent',
+    { schema: { params, querystring, body: configureAgentSchema } },
+    (request) =>
+      configureAgent(db, request.body, request.params.id, operator(request.id)),
   );
   done();
 }

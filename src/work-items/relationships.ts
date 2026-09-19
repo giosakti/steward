@@ -1,16 +1,17 @@
 import { randomUUID } from 'node:crypto';
+
 import { sql, type Kysely, type Transaction } from 'kysely';
 
 import { validateOperatorActor, type OperatorActor } from '../audit/actor.js';
 import { ApplicationError } from '../errors.js';
 import type { Database } from '../storage/database.js';
 import { showWorkspace } from '../workspaces/workspaces.js';
-import { showWorkItem } from './work-items.js';
 import {
   createWorkItemRelationshipSchema,
   type CreateWorkItemRelationshipInput,
 } from './schemas.js';
 import type { WorkItemRelationship } from './types.js';
+import { showWorkItem } from './work-items.js';
 
 export async function createWorkItemRelationship(
   db: Kysely<Database>,

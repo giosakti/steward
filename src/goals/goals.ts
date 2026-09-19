@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+
 import { sql, type Kysely } from 'kysely';
 
 import { validateOperatorActor, type OperatorActor } from '../audit/actor.js';
