@@ -23,15 +23,11 @@ export async function createGoal(
   const parsed = createGoalSchema.parse(input);
   return db.transaction().execute(async (trx) => {
     await showWorkspace(trx, workspaceId);
-    if (parsed.parentGoalId) {
-      await showGoal(trx, workspaceId, parsed.parentGoalId);
-    }
     const goal = await trx
       .insertInto('goals')
       .values({
         id: randomUUID(),
         workspace_id: workspaceId,
-        parent_goal_id: parsed.parentGoalId ?? null,
         title: parsed.title,
         objective: parsed.objective,
         status: 'active',

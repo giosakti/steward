@@ -20,7 +20,6 @@ const operatorStatusSchema = workItemStatusSchema.exclude([
 
 export const createWorkItemSchema = z.strictObject({
   goalId: z.uuid(),
-  parentWorkItemId: z.uuid().optional(),
   title: text.max(200),
   objective: text.max(10000),
   acceptanceCriteria: criteria,
@@ -43,3 +42,18 @@ export const updateWorkItemSchema = z
   );
 
 export type UpdateWorkItemInput = z.infer<typeof updateWorkItemSchema>;
+
+export const createWorkItemRelationshipSchema = z
+  .strictObject({
+    sourceId: z.uuid().transform((id) => id.toLowerCase()),
+    targetId: z.uuid().transform((id) => id.toLowerCase()),
+    type: z.enum(['blocks', 'relates_to']),
+  })
+  .refine(
+    (input) => input.sourceId !== input.targetId,
+    'A relationship cannot link an item to itself',
+  );
+
+export type CreateWorkItemRelationshipInput = z.infer<
+  typeof createWorkItemRelationshipSchema
+>;

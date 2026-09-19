@@ -24,16 +24,12 @@ export async function createWorkItem(
   const parsed = createWorkItemSchema.parse(input);
   return db.transaction().execute(async (trx) => {
     await showGoal(trx, workspaceId, parsed.goalId);
-    if (parsed.parentWorkItemId) {
-      await showWorkItem(trx, workspaceId, parsed.parentWorkItemId);
-    }
     const item = await trx
       .insertInto('work_items')
       .values({
         id: randomUUID(),
         workspace_id: workspaceId,
         goal_id: parsed.goalId,
-        parent_work_item_id: parsed.parentWorkItemId ?? null,
         title: parsed.title,
         objective: parsed.objective,
         acceptance_criteria: JSON.stringify(parsed.acceptanceCriteria),

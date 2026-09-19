@@ -23,7 +23,7 @@ import type { Workspace } from '../src/workspaces/types.js';
 import { isolated } from './database.js';
 
 describe('operator intent hierarchy', () => {
-  it('persists a mission, goal ancestry and work ancestry, with explicit operator attribution', async () => {
+  it('persists missions, goals and work with explicit operator attribution', async () => {
     await setup(async ({ app, db, workspace, url, client }) => {
       const base = `/api/v1/workspaces/${workspace.id}`;
       expect(
@@ -48,22 +48,6 @@ describe('operator intent hierarchy', () => {
       expect(goalResponse.statusCode).toBe(201);
       const goal = goalResponse.json<Goal>();
       expect(goalResponse.headers.location).toBe(`${base}/goals/${goal.id}`);
-      const child = await createGoal(
-        db,
-        workspace.id,
-        { ...goalInput, parentGoalId: goal.id },
-        operator,
-      );
-      const grandchild = await createGoal(
-        db,
-        workspace.id,
-        { ...goalInput, parentGoalId: child.id },
-        operator,
-      );
-      expect(grandchild.parent_goal_id).toBe(child.id);
-      expect((await showGoal(db, workspace.id, child.id)).parent_goal_id).toBe(
-        goal.id,
-      );
       const workResponse = await app.inject({
         method: 'POST',
         url: `${base}/work-items`,
@@ -85,39 +69,28 @@ describe('operator intent hierarchy', () => {
         },
       });
       expect(work.created_by.requestId).not.toBe('spoofed');
-      const childWork = await createWorkItem(
+      const prioritized = await createWorkItem(
         db,
         workspace.id,
-        { ...workInput(child.id), parentWorkItemId: work.id, priority: 5 },
+        { ...workInput(goal.id), priority: 5 },
         operator,
       );
-      const grandchildWork = await createWorkItem(
-        db,
-        workspace.id,
-        { ...workInput(grandchild.id), parentWorkItemId: childWork.id },
-        operator,
-      );
-      expect(grandchildWork.parent_work_item_id).toBe(childWork.id);
-      expect(
-        (await showWorkItem(db, workspace.id, childWork.id))
-          .parent_work_item_id,
-      ).toBe(work.id);
       expect(
         (await app.inject({ url: `${base}/goals`, headers })).json(),
-      ).toHaveLength(3);
+      ).toHaveLength(1);
       const listing = await app.inject({ url: `${base}/work-items`, headers });
-      expect(listing.json<WorkItem[]>()[0]?.id).toBe(childWork.id);
+      expect(listing.json<WorkItem[]>()[0]?.id).toBe(prioritized.id);
       const connection = connectDatabase(url);
       try {
         expect((await showMission(connection, workspace.id)).statement).toBe(
           'Build a useful Steward',
         );
-        expect(await showGoal(connection, workspace.id, grandchild.id)).toEqual(
-          grandchild,
+        expect(await showGoal(connection, workspace.id, goal.id)).toEqual(
+          expect.objectContaining({ id: goal.id }),
         );
         expect(
-          await showWorkItem(connection, workspace.id, childWork.id),
-        ).toEqual(childWork);
+          await showWorkItem(connection, workspace.id, prioritized.id),
+        ).toEqual(prioritized);
       } finally {
         await connection.destroy();
       }
@@ -231,7 +204,7 @@ describe('operator intent hierarchy', () => {
     });
   });
 
-  it('enforces workspace boundaries for reads, updates, parents and required goals', async () => {
+  it('enforces workspace boundaries for reads, updates and required goals', async () => {
     await setup(async ({ app, db, workspace, client }) => {
       const other = await createWorkspace(
         db,
@@ -264,18 +237,8 @@ describe('operator intent hierarchy', () => {
         ).toBe(404);
       }
       for (const [resource, payload] of [
-        ['goals', { ...goalInput, parentGoalId: goal.id }],
-        ['goals', { ...goalInput, parentGoalId: randomUUID() }],
         ['work-items', workInput(goal.id)],
         ['work-items', workInput(randomUUID())],
-        [
-          'work-items',
-          { ...workInput(otherGoal.id), parentWorkItemId: work.id },
-        ],
-        [
-          'work-items',
-          { ...workInput(otherGoal.id), parentWorkItemId: randomUUID() },
-        ],
       ] as const) {
         expect(
           (
@@ -292,28 +255,10 @@ describe('operator intent hierarchy', () => {
         (await app.inject({ url: `${base}/work-items`, headers })).json(),
       ).toEqual([]);
       await expect(
-        client.query('UPDATE goals SET parent_goal_id=$1 WHERE id=$2', [
-          goal.id,
-          otherGoal.id,
-        ]),
-      ).rejects.toThrow(/foreign key/);
-      await expect(
         client.query('UPDATE work_items SET goal_id=$1 WHERE id=$2', [
           otherGoal.id,
           work.id,
         ]),
-      ).rejects.toThrow(/foreign key/);
-      const otherWork = await createWorkItem(
-        db,
-        other.id,
-        workInput(otherGoal.id),
-        operator,
-      );
-      await expect(
-        client.query(
-          'UPDATE work_items SET parent_work_item_id=$1 WHERE id=$2',
-          [work.id, otherWork.id],
-        ),
       ).rejects.toThrow(/foreign key/);
       await expect(
         client.query('UPDATE work_items SET goal_id=NULL WHERE id=$1', [
@@ -323,7 +268,7 @@ describe('operator intent hierarchy', () => {
     });
   });
 
-  it('rejects invalid input, ancestry rewrites, forged identity and execution-owned statuses', async () => {
+  it('rejects invalid input, removed parent fields, forged identity and execution-owned statuses', async () => {
     await setup(async ({ app, db, workspace, client }) => {
       const goal = await createGoal(db, workspace.id, goalInput, operator);
       const work = await createWorkItem(
@@ -335,6 +280,16 @@ describe('operator intent hierarchy', () => {
       const base = `/api/v1/workspaces/${workspace.id}`;
       const count = (await client.query('SELECT * FROM events')).rows.length;
       const requests = [
+        {
+          method: 'POST',
+          path: 'goals',
+          payload: { ...goalInput, parentGoalId: goal.id },
+        },
+        {
+          method: 'POST',
+          path: 'work-items',
+          payload: { ...workInput(goal.id), parentWorkItemId: work.id },
+        },
         { method: 'PUT', path: 'mission', payload: { statement: ' ' } },
         {
           method: 'POST',

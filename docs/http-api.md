@@ -54,7 +54,7 @@ Items](intent-hierarchy.md) for relationships, status meaning, and authority.
 Goal and Work Item creation returns `201` with `Location`. Mission setting returns
 `200` with the current record, whether first set or replaced. Reads and patches
 return `200`. Missing, archived, or mismatched workspace references return `404`.
-All list routes return arrays and currently accept no query parameters.
+These list routes return arrays and accept no query parameters.
 
 Example request bodies, in order:
 
@@ -78,9 +78,8 @@ Example request bodies, in order:
 }
 ```
 
-Goal creation optionally accepts `parentGoalId`. Work Item creation optionally
-accepts `parentWorkItemId` and an integer `priority` (default `0`). Creation does
-not accept a status override. Text is trimmed; required text must not be blank.
+Work Item creation optionally accepts an integer `priority` (default `0`).
+Creation does not accept parent fields or a status override. Text is trimmed; required text must not be blank.
 Titles allow up to 200 characters; objectives and mission statements allow 10,000.
 Acceptance criteria require 1–100 nonblank strings, each at most 2,000 characters.
 Priority uses PostgreSQL's signed 32-bit integer range.
@@ -88,10 +87,55 @@ Priority uses PostgreSQL's signed 32-bit integer range.
 Goal patches accept `title`, `objective`, and `status`. Work Item patches accept
 `title`, `objective`, `acceptanceCriteria`, `priority`, and `status`; supplied
 acceptance criteria replace the array. Patches require at least one field.
-Unknown fields, null values, ancestry changes, and caller-supplied identity are
+Unknown fields, null values, changes to a Work Item's Goal, and caller-supplied identity are
 rejected with `400`.
 
 For example, `PATCH /work-items/:entityId` with `{"status":"ready"}` records that
 work is ready without executing it. Setting `running` or `needs_review` returns
 `400`; editing work already in either state returns `409`. Every successful
 mutation records an audit event with the server-generated request ID.
+
+## Relationships
+
+Paths are relative to `/api/v1/workspaces/:id` and require the operator token.
+
+| Method | Path                                       | Operation                |
+| ------ | ------------------------------------------ | ------------------------ |
+| POST   | `/goal-relationships`                      | Link two Goals           |
+| GET    | `/goal-relationships`                      | List Goal links          |
+| GET    | `/goal-relationships/:relationshipId`      | Inspect a Goal link      |
+| DELETE | `/goal-relationships/:relationshipId`      | Remove a Goal link       |
+| POST   | `/work-item-relationships`                 | Link two Work Items      |
+| GET    | `/work-item-relationships`                 | List Work Item links     |
+| GET    | `/work-item-relationships/:relationshipId` | Inspect a Work Item link |
+| DELETE | `/work-item-relationships/:relationshipId` | Remove a Work Item link  |
+
+Creation accepts `sourceId`, `targetId`, and `type`. Goal links support
+`contributes_to` and `relates_to`; Work Item links support `blocks` and
+`relates_to`. For example:
+
+```json
+{
+  "sourceId": "<prerequisite Work Item UUID>",
+  "targetId": "<dependent Work Item UUID>",
+  "type": "blocks"
+}
+```
+
+Both endpoints must exist in this Workspace. Creation returns `201` with a
+`Location` header. Responses include `source_id`, `target_id`, `type`,
+`created_by`, and `created_at`. Symmetric links use canonical UUID order, so
+`source_id` need not be the endpoint supplied first; it carries no direction for
+`relates_to`. Directed links preserve their supplied direction.
+
+Listing optionally accepts `?entityId=<UUID>` to return links touching either
+side of that Goal or Work Item. Inspecting the reverse perspective uses these
+same links, not separate records. Removal returns `204`; the complete removed
+link and removing operator remain in the immutable audit log. There is no PATCH
+endpoint for links.
+
+Malformed input, unsupported types, and self-links return `400`. Missing,
+wrong-type, or cross-workspace endpoints return `404`. Duplicates (including
+reversed symmetric links) and directed cycles return `409`. See the
+[relationship semantics](intent-hierarchy.md#relationships) for the distinction
+between purpose, context, and prerequisites.

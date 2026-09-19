@@ -18,14 +18,32 @@ Goals can be created before a mission is set.
 
 ## Relationships
 
-Every Work Item requires a Goal. Goals may have a parent Goal; Work Items may
-have a parent Work Item. All references must belong to the same workspace.
-A child Work Item may advance a different Goal from its parent within that
-workspace, allowing work to be divided across subgoals.
+Every Work Item requires one primary Goal. Goals and Work Items have no parent
+field. Instead, each can have multiple explicit relationships within its Workspace:
 
-Parent links and a Work Item's Goal are fixed at creation in this slice. New
-records can reference only existing parents, so the API cannot create cycles.
-Reparenting, moving work between goals, and deletion are not exposed yet.
+| Between    | Forward label  | Reverse label | Type             |
+| ---------- | -------------- | ------------- | ---------------- |
+| Goals      | contributes to | advanced by   | `contributes_to` |
+| Goals      | relates to     | relates to    | `relates_to`     |
+| Work Items | blocks         | is blocked by | `blocks`         |
+| Work Items | relates to     | relates to    | `relates_to`     |
+
+Reverse labels display the same stored link. `relates_to` is symmetric; reversing
+its endpoints does not create another link. Work Items may link across primary
+Goals within their Workspace. Self-links, duplicates, and directed cycles are
+rejected, including cycles introduced by concurrent additions. Context links may
+form cycles. Endpoints and types cannot be edited in place: remove and recreate
+the link, preserving both operations in the audit history.
+
+`contributes_to` expresses purpose without imposing execution order or automatic
+completion. `relates_to` supplies context only. If A `blocks` B, B must not start
+execution while A is incomplete. Rejection of A does not fulfill the dependency;
+it must be resolved explicitly. Completing A does not automatically change B's
+status or start execution. Dependency checks and revalidation will be connected
+with Run orchestration; these APIs only record the relationships today.
+
+A Work Item's primary Goal is fixed at creation in this slice. Moving work between
+Goals and deleting Missions, Goals, or Work Items are not exposed yet.
 
 ## Operator workflow
 
@@ -35,8 +53,8 @@ accept direct human-operator instructions. They are not agent capabilities:
 agents will need a separate Decision Kernel authorization path.
 
 Goals start `active`; the operator can set `active`, `paused`, `completed`, or
-`cancelled`. Status changes do not cascade to children or infer completion from
-their statuses.
+`cancelled`. Status changes do not cascade through relationships or infer completion from
+related records.
 
 Work Items start `proposed`, with priority `0`. Larger priority values sort first.
 The operator can change a Work Item's title, objective, acceptance criteria,

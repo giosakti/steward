@@ -12,6 +12,8 @@ import { z } from 'zod';
 
 import type { Database } from '../storage/database.js';
 import { ApplicationError } from '../errors.js';
+import { goalRelationshipRoutes } from '../goals/relationship-routes.js';
+import { workItemRelationshipRoutes } from '../work-items/relationship-routes.js';
 import { missionRoutes } from '../missions/routes.js';
 import { goalRoutes } from '../goals/routes.js';
 import { workItemRoutes } from '../work-items/routes.js';
@@ -91,6 +93,8 @@ export function buildApp(db: Kysely<Database>, token: string, logging = false) {
   );
   app.register(workspaceRoutes, { db });
   app.register(missionRoutes, { db });
+  app.register(goalRelationshipRoutes, { db });
+  app.register(workItemRelationshipRoutes, { db });
   app.register(goalRoutes, { db });
   app.register(workItemRoutes, { db });
   return app;
