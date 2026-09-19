@@ -21,15 +21,22 @@ CREATE TABLE decisions (
 CREATE INDEX action_intents_workspace ON action_intents(workspace_id, created_at, id);
 CREATE INDEX decisions_intent ON decisions(workspace_id, action_intent_id, created_at, id);
 
-CREATE FUNCTION reject_decision_evidence_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION reject_action_intent_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  RAISE EXCEPTION 'decision evidence is append-only';
+  RAISE EXCEPTION 'action intents are append-only';
 END;
 $$;
 
 CREATE TRIGGER action_intents_append_only
 BEFORE UPDATE OR DELETE OR TRUNCATE ON action_intents
-FOR EACH STATEMENT EXECUTE FUNCTION reject_decision_evidence_mutation();
+FOR EACH STATEMENT EXECUTE FUNCTION reject_action_intent_mutation();
+
+CREATE FUNCTION reject_decision_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'decisions are append-only';
+END;
+$$;
+
 CREATE TRIGGER decisions_append_only
 BEFORE UPDATE OR DELETE OR TRUNCATE ON decisions
-FOR EACH STATEMENT EXECUTE FUNCTION reject_decision_evidence_mutation();
+FOR EACH STATEMENT EXECUTE FUNCTION reject_decision_mutation();
