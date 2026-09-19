@@ -97,3 +97,4 @@ PostgreSQL 18 service.
 
 - [Workspaces and CLI](docs/workspaces.md)
 - [HTTP API](docs/http-api.md)
+- [Decision Kernel](docs/decisions.md)
