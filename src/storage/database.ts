@@ -24,14 +24,14 @@ export function connectDatabase(connectionString: string): Kysely<Database> {
 
 // These types mirror the SQL migrations; PostgreSQL remains the schema authority.
 export interface Database {
-  goal_relationships: GoalRelationshipTable;
-  work_item_relationships: WorkItemRelationshipTable;
-  goals: GoalTable;
-  work_items: WorkItemTable;
-  action_intents: ActionIntentTable;
-  decisions: DecisionTable;
   workspaces: WorkspaceTable;
   agents: AgentTable;
+  goals: GoalTable;
+  goal_relationships: GoalRelationshipTable;
+  work_items: WorkItemTable;
+  work_item_relationships: WorkItemRelationshipTable;
+  action_intents: ActionIntentTable;
+  decisions: DecisionTable;
   events: {
     id: GeneratedAlways<string>;
     workspace_id: string | null;
