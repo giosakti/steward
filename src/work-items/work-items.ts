@@ -35,7 +35,6 @@ export async function createWorkItem(
         acceptance_criteria: JSON.stringify(parsed.acceptanceCriteria),
         status: 'proposed',
         priority: parsed.priority ?? 0,
-        created_by: JSON.stringify(operator),
       })
       .returningAll()
       .executeTakeFirstOrThrow();

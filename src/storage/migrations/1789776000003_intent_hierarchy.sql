@@ -25,7 +25,6 @@ CREATE TABLE work_items (
     'proposed', 'ready', 'running', 'needs_review', 'completed', 'rejected', 'blocked'
   )),
   priority integer NOT NULL,
-  created_by jsonb NOT NULL CHECK (jsonb_typeof(created_by) = 'object'),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (workspace_id, id),
@@ -42,7 +41,6 @@ CREATE TABLE goal_relationships (
   source_id uuid NOT NULL,
   target_id uuid NOT NULL,
   type text NOT NULL CHECK (type IN ('contributes_to', 'relates_to')),
-  created_by jsonb NOT NULL CHECK (jsonb_typeof(created_by) = 'object'),
   created_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (workspace_id, source_id) REFERENCES goals(workspace_id, id),
   FOREIGN KEY (workspace_id, target_id) REFERENCES goals(workspace_id, id),
@@ -59,7 +57,6 @@ CREATE TABLE work_item_relationships (
   source_id uuid NOT NULL,
   target_id uuid NOT NULL,
   type text NOT NULL CHECK (type IN ('blocks', 'relates_to')),
-  created_by jsonb NOT NULL CHECK (jsonb_typeof(created_by) = 'object'),
   created_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (workspace_id, source_id) REFERENCES work_items(workspace_id, id),
   FOREIGN KEY (workspace_id, target_id) REFERENCES work_items(workspace_id, id),

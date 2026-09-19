@@ -127,7 +127,7 @@ Creation accepts `sourceId`, `targetId`, and `type`. Goal links support
 
 Both endpoints must exist in this Workspace. Creation returns `201` with a
 `Location` header. Responses include `source_id`, `target_id`, `type`,
-`created_by`, and `created_at`. Symmetric links use canonical UUID order, so
+and `created_at`. Creator attribution is recorded in the creation audit event. Symmetric links use canonical UUID order, so
 `source_id` need not be the endpoint supplied first; it carries no direction for
 `relates_to`. Directed links preserve their supplied direction.
 

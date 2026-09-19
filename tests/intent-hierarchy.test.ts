@@ -70,13 +70,22 @@ describe('operator intent hierarchy', () => {
       expect(work).toMatchObject({
         status: 'proposed',
         priority: 0,
-        created_by: {
-          actor: 'operator',
-          source: 'workspace-http',
-          requestId: workResponse.headers['x-request-id'],
-        },
       });
-      expect(work.created_by.requestId).not.toBe('spoofed');
+      expect(work).not.toHaveProperty('created_by');
+      const creation = (
+        await client.query<{
+          payload: { actor: string; source: string; requestId: string };
+        }>(
+          "SELECT payload FROM events WHERE type='WORK_ITEM_CREATED' AND payload->'data'->>'id'=$1",
+          [work.id],
+        )
+      ).rows[0]!;
+      expect(creation.payload).toMatchObject({
+        actor: 'operator',
+        source: 'workspace-http',
+        requestId: workResponse.headers['x-request-id'],
+      });
+      expect(creation.payload.requestId).not.toBe('spoofed');
       const prioritized = await createWorkItem(
         db,
         workspace.id,

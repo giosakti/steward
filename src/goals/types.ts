@@ -1,7 +1,6 @@
-import type { Generated, JSONColumnType, Selectable } from 'kysely';
+import type { Generated, Selectable } from 'kysely';
 import type { z } from 'zod';
 
-import type { OperatorActor } from '../audit/actor.js';
 import type { goalStatusSchema } from './schemas.js';
 
 export type Goal = Selectable<GoalTable>;
@@ -24,6 +23,5 @@ export interface GoalRelationshipTable {
   source_id: string;
   target_id: string;
   type: 'contributes_to' | 'relates_to';
-  created_by: JSONColumnType<OperatorActor>;
   created_at: Generated<Date>;
 }

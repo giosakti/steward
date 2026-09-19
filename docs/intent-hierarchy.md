@@ -72,8 +72,11 @@ connected by this slice.
 
 Mutations and their audit events commit in one transaction. Events identify the
 operator and request and preserve the resulting record. Update events also
-preserve the previous record. A Work Item's `created_by` is derived from the
-trusted operator context, never supplied in the request body.
+preserve the previous record. Creator attribution lives in immutable creation
+events, not `created_by` columns on Work Items or relationships. Actor and
+request metadata come from trusted operator context, never from request bodies.
+A shared identity model for humans and agents is deferred until agent access is
+implemented.
 
 This provides durable intent for the next execution slice. Linking Runs and
 Action Intents to Work Items, retrieving authoritative decision context, and

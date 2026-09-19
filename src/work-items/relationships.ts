@@ -59,7 +59,6 @@ export async function createWorkItemRelationship(
           source_id: sourceId,
           target_id: targetId,
           type: parsed.type,
-          created_by: JSON.stringify(operator),
         })
         .returningAll()
         .executeTakeFirstOrThrow();

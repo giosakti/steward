@@ -37,7 +37,7 @@ describe.each([
   },
 ] as const)('$route', (kind) => {
   it('supports multiple directed links and incident listing without changing endpoint state', async () => {
-    await setup(async ({ app, db, workspaceId, goals, work, url }) => {
+    await setup(async ({ app, db, client, workspaceId, goals, work, url }) => {
       const [a, b, c] = kind.event === 'GOAL' ? goals : work;
       const base = `/api/v1/workspaces/${workspaceId}/${kind.route}`;
       const first = await createLink(app, base, a, b, kind.directed);
@@ -47,10 +47,20 @@ describe.each([
         source_id: a,
         target_id: b,
         type: kind.directed,
-        created_by: {
-          actor: 'operator',
-          requestId: first.headers['x-request-id'],
-        },
+      });
+      expect(link).not.toHaveProperty('created_by');
+      const creation = (
+        await client.query<{
+          payload: { actor: string; source: string; requestId: string };
+        }>(
+          "SELECT payload FROM events WHERE type=$1 AND payload->'data'->>'id'=$2",
+          [`${kind.event}_RELATIONSHIP_CREATED`, link.id],
+        )
+      ).rows[0]!;
+      expect(creation.payload).toMatchObject({
+        actor: 'operator',
+        source: 'workspace-http',
+        requestId: first.headers['x-request-id'],
       });
       expect(first.headers.location).toBe(`${base}/${link.id}`);
       expect(
@@ -233,7 +243,7 @@ describe.each([
       );
       await expect(
         client.query(
-          `INSERT INTO ${kind.table}(id, workspace_id, source_id, target_id, type, created_by) VALUES ($1,$2,$3,$4,$5,'{}')`,
+          `INSERT INTO ${kind.table}(id, workspace_id, source_id, target_id, type) VALUES ($1,$2,$3,$4,$5)`,
           [randomUUID(), workspaceId, a, foreignId, kind.directed],
         ),
       ).rejects.toThrow(/foreign key/);
