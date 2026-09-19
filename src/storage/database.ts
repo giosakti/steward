@@ -7,7 +7,6 @@ import {
 import pg from 'pg';
 
 import type { ActionIntentTable, DecisionTable } from '../decisions/types.js';
-import type { MissionTable } from '../missions/types.js';
 import type { GoalTable, GoalRelationshipTable } from '../goals/types.js';
 import type {
   WorkItemTable,
@@ -27,7 +26,6 @@ export function connectDatabase(connectionString: string): Kysely<Database> {
 export interface Database {
   goal_relationships: GoalRelationshipTable;
   work_item_relationships: WorkItemRelationshipTable;
-  missions: MissionTable;
   goals: GoalTable;
   work_items: WorkItemTable;
   action_intents: ActionIntentTable;

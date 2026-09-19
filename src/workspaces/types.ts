@@ -5,6 +5,7 @@ export interface WorkspaceTable {
   slug: string;
   name: string;
   description: string | null;
+  mission_statement: Generated<string | null>;
   root_path: string | null;
   root_agent_id: string;
   created_at: Generated<Date>;
@@ -24,3 +25,8 @@ export interface AgentTable {
 
 export type Workspace = Selectable<WorkspaceTable>;
 export type Agent = Selectable<AgentTable>;
+
+export interface WorkspaceMission {
+  workspace_id: string;
+  statement: string;
+}

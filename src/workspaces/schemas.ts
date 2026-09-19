@@ -30,3 +30,9 @@ export const configureAgentSchema = z
 
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
 export type ConfigureAgentInput = z.infer<typeof configureAgentSchema>;
+
+export const setMissionSchema = z.strictObject({
+  statement: z.string().trim().min(1).max(10000),
+});
+
+export type SetMissionInput = z.infer<typeof setMissionSchema>;

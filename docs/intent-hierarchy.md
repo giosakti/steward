@@ -12,9 +12,10 @@ Mission: Build a useful self-improving Steward
         Acceptance: The base checkout remains unchanged
 ```
 
-Goals belong to the workspace, not to a particular mission revision. Setting a
-new mission retains its ID and records the previous statement in the audit log.
-Goals can be created before a mission is set.
+The current mission is the nullable `mission_statement` field on the Workspace,
+not a separate entity or table. Goals belong to the workspace, not to a mission
+revision. Setting a new statement updates the workspace and records the previous
+statement in the audit log. Goals can be created before a mission is set.
 
 ## Relationships
 
@@ -43,7 +44,7 @@ status or start execution. Dependency checks and revalidation will be connected
 with Run orchestration; these APIs only record the relationships today.
 
 A Work Item's primary Goal is fixed at creation in this slice. Moving work between
-Goals and deleting Missions, Goals, or Work Items are not exposed yet.
+Goals and deleting Goals or Work Items are not exposed yet.
 
 ## Operator workflow
 

@@ -52,7 +52,10 @@ Items](intent-hierarchy.md) for relationships, status meaning, and authority.
 | PATCH  | `/work-items/:entityId` | Update a Work Item                                    |
 
 Goal and Work Item creation returns `201` with `Location`. Mission setting returns
-`200` with the current record, whether first set or replaced. Reads and patches
+`200` with `{ "workspace_id": "...", "statement": "..." }`, whether first set or
+replaced. The mission has no independent ID or timestamps. Workspace responses
+include `mission_statement` (`null` until set); setting it updates the workspace
+`updated_at` timestamp. Reads and patches
 return `200`. Missing, archived, or mismatched workspace references return `404`.
 These list routes return arrays and accept no query parameters.
 

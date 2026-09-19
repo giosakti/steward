@@ -10,7 +10,7 @@ import type { OperatorActor } from '../src/audit/actor.js';
 import { createGoal, updateGoal, showGoal } from '../src/goals/goals.js';
 import type { Goal } from '../src/goals/types.js';
 import { buildApp } from '../src/http/app.js';
-import { setMission, showMission } from '../src/missions/missions.js';
+import { setMission, showMission } from '../src/workspaces/mission.js';
 import { connectDatabase, type Database } from '../src/storage/database.js';
 import {
   createWorkItem,
@@ -36,6 +36,14 @@ describe('operator intent hierarchy', () => {
         payload: { statement: 'Build a useful Steward' },
       });
       expect(mission.statusCode).toBe(200);
+      expect(mission.json()).toEqual({
+        workspace_id: workspace.id,
+        statement: 'Build a useful Steward',
+      });
+      const storedWorkspace = await app.inject({ url: base, headers });
+      expect(
+        storedWorkspace.json<{ mission_statement: string }>().mission_statement,
+      ).toBe('Build a useful Steward');
       expect(
         (await app.inject({ url: `${base}/mission`, headers })).json(),
       ).toEqual(mission.json());
@@ -105,9 +113,18 @@ describe('operator intent hierarchy', () => {
           setMission(db, workspace.id, { statement }, operator),
         ),
       );
-      expect(results[0]?.id).toBe(results[1]?.id);
-      expect((await client.query('SELECT * FROM missions')).rows).toHaveLength(
-        1,
+      expect(results.map((result) => result.workspace_id)).toEqual([
+        workspace.id,
+        workspace.id,
+      ]);
+      const stored = (
+        await client.query<{ mission_statement: string }>(
+          'SELECT mission_statement FROM workspaces WHERE id=$1',
+          [workspace.id],
+        )
+      ).rows[0]!;
+      expect(stored.mission_statement).toBe(
+        (await showMission(db, workspace.id)).statement,
       );
       const events = (
         await client.query<{
@@ -512,9 +529,10 @@ describe('operator intent hierarchy', () => {
         await expect(mutation()).rejects.toThrow(/reject_hierarchy/);
       }
       expect(await showMission(db, workspace.id)).toEqual(mission);
+      await expect(showMission(db, other.id)).rejects.toThrow(/not set/);
       expect(await showGoal(db, workspace.id, goal.id)).toEqual(goal);
       expect(await showWorkItem(db, workspace.id, work.id)).toEqual(work);
-      for (const table of ['missions', 'goals', 'work_items']) {
+      for (const table of ['goals', 'work_items']) {
         expect(
           (await client.query(`SELECT * FROM ${table}`)).rows,
         ).toHaveLength(1);

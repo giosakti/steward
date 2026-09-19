@@ -1,10 +1,5 @@
-CREATE TABLE missions (
-  id uuid PRIMARY KEY,
-  workspace_id uuid NOT NULL UNIQUE REFERENCES workspaces(id),
-  statement text NOT NULL CHECK (length(btrim(statement)) > 0),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
+ALTER TABLE workspaces ADD COLUMN mission_statement text
+  CHECK (mission_statement IS NULL OR length(btrim(mission_statement)) > 0);
 
 CREATE TABLE goals (
   id uuid PRIMARY KEY,
